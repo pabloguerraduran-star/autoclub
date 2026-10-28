@@ -29,7 +29,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .brand { font-family: var(--display); font-weight: 600; font-size: 1.45rem; letter-spacing: .01em; margin: 0; }
 .brand small { font-family: var(--body); font-weight: 400; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin-left: .5rem; }
 .date { display: flex; align-items: center; gap: 6px; }
-.date { flex-wrap: wrap; }
+.date { flex-wrap: wrap; justify-content: flex-end; }
+.date[hidden] { display: none; }
+@media (max-width: 560px) { .date { justify-content: flex-start; } }
 .date button { font: inherit; font-weight: 500; color: var(--band-fg); background: transparent; border: 1px solid color-mix(in srgb, var(--band-fg) 35%, transparent); border-radius: 8px; padding: 6px 10px; min-height: 36px; min-width: 44px; cursor: pointer; }
 .date button[aria-pressed="true"] { background: var(--band-fg); color: var(--navy-deep); border-color: var(--band-fg); font-weight: 600; }
 .fechabox { display: grid; justify-items: end; gap: 6px; }
@@ -99,7 +101,13 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 .ped td { padding: 5px 0; border-bottom: 1px solid var(--rule); }
 .ped td:last-child { text-align: right; white-space: nowrap; font-weight: 600; }
 .ped td.fam { padding-top: 12px; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; border-bottom: 0; }
-.ped .acts { display: flex; gap: 8px; }
+.ped .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.ped th { text-align: left; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 4px 0; border-bottom: 1px solid var(--rule); }
+.ped th:nth-child(n+2), .ped td.sug { text-align: right; white-space: nowrap; }
+.ped td.sug { color: var(--muted); font-weight: 400; padding-right: 10px; }
+.ped td:last-child, .ped th:last-child { width: 6.5rem; text-align: right; }
+.ped input.alt { font: inherit; width: 6rem; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 8px; background: var(--cream); color: var(--ink); text-align: right; font-weight: 600; }
+.ped input.alt::placeholder { color: color-mix(in srgb, var(--muted) 55%, transparent); font-weight: 400; }
 .dias-ped { display: grid; gap: 18px; }
 .tabs a.cambiar { margin-left: auto; opacity: .85; font-weight: 400; text-decoration: underline; text-underline-offset: 3px; }
 .selector { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
@@ -132,6 +140,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     <div class="fechabox">
     <span class="dianom" id="dianom" aria-live="polite"></span>
     <div class="date" id="dias" role="group" aria-label="Día de la semana"></div>
+    <div class="date" id="fams" role="group" aria-label="Familia de pedido" hidden></div>
     </div>
   </div>
   <nav class="tabs" aria-label="Vistas">
@@ -183,6 +192,8 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     else S.vista = ['admin', 'barra', 'plancha', 'frio', 'caliente', 'produccion', 'pedidos'].includes(h) ? h : 'admin';
     document.querySelectorAll('.tabs a[data-v]').forEach(a => a.hidden = !(modo === 'admin' || a.dataset.v === modo));
     $('#cambiar').hidden = !modo;
+    $('#dias').hidden = S.vista === 'pedidos'; $('#fams').hidden = S.vista !== 'pedidos';
+    $('#dianom').textContent = S.vista === 'pedidos' ? (S.fam || 'Pedidos') : dia(S.fecha);
     document.querySelectorAll('.tabs a').forEach(a => a.dataset.v === S.vista ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
     render(); }
   window.addEventListener('hashchange', readHash);
@@ -195,7 +206,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   if (dia(S.fecha) === 'Lunes') S.fecha = martesDeSemana();
   SEMANA.forEach(d => { const b = el('button', { type: 'button', 'data-d': d, text: d.slice(0, 3) }); b.addEventListener('click', () => setFecha(fechaDe(d))); $('#dias').append(b); });
   function setFecha(f) { S.fecha = f; diaNom(); subChecks(); render(); }
-  function diaNom() { $('#dianom').textContent = dia(S.fecha); document.querySelectorAll('#dias button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.d === dia(S.fecha)))); }
+  function diaNom() { if (S.vista !== 'pedidos') $('#dianom').textContent = dia(S.fecha); document.querySelectorAll('#dias button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.d === dia(S.fecha)))); }
   diaNom();
 
   // ---- datos: plan fijo en plan.json; checks en Supabase (leer y escribir abierto vía marcar())
@@ -260,7 +271,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     const d = dia(S.fecha);
     if (S.vista === 'admin') return renderAdmin(d);
     if (S.vista === 'produccion') return renderProd(d);
-    if (S.vista === 'pedidos') return renderPedidos(d);
+    if (S.vista === 'pedidos') return renderPedidos();
     return renderEst(S.vista, d);
   }
 
@@ -412,40 +423,49 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     }));
   }
 
-  // ---- pedidos: calendario semanal fijo (necesidad del período, sin descontar bodega)
-  function renderPedidos(d) {
-    main.append(el('section', { class: 'group' }, el('h2', { text: 'Pedidos' }),
-      el('p', { class: 'sub', text: 'Cuánto pedir para que cada cosa llegue antes de usarse: venta de la semana 20-25 oct + materia prima de la producción, + 20%. No descuenta lo que haya en bodega: réstalo al pedir.' })));
+  // ---- pedidos por familia: sugerido (venta S3 + producción, +20%) y una cantidad propia que es la que se copia.
+  // La cantidad propia se guarda en este equipo, por semana.
+  const altKey = (x, i) => ['ped', martesDeSemana(), x.nombre, x.dia, i.cod].join('|');
+  function getAlt(x, i) { try { return localStorage.getItem(altKey(x, i)) || ''; } catch (e) { return (S.altMem || {})[altKey(x, i)] || ''; } }
+  function setAlt(x, i, v) { S.altMem = S.altMem || {}; S.altMem[altKey(x, i)] = v; try { v ? localStorage.setItem(altKey(x, i), v) : localStorage.removeItem(altKey(x, i)); } catch (e) {} }
+  function famBotones(fams) {
+    const box = $('#fams'); box.innerHTML = '';
+    fams.forEach(f => { const b = el('button', { type: 'button', text: f, 'aria-pressed': String(f === S.fam) });
+      b.addEventListener('click', () => { S.fam = f; $('#dianom').textContent = f; render(); }); box.append(b); });
+  }
+  function renderPedidos() {
     const P = S.pedidos;
     if (!P) { main.append(el('div', { class: 'notice', text: 'No se pudo cargar la lista de pedidos. Recarga la página.' })); return; }
-    const dias = [...new Set(P.pedidos.map(x => x.dia))];
-    const hoy = P.pedidos.filter(x => x.dia === d);
-    main.append(el('p', { class: 'sub', text: hoy.length ? `${d}: hoy llegan ${hoy.length} pedido${hoy.length > 1 ? 's' : ''} (marcados en azul).` : `${d}: no llegan pedidos. Próximos: ${dias.join(', ')}.` }));
-    const wrap = el('div', { class: 'dias-ped' });
-    dias.forEach(dd => {
-      wrap.append(el('h3', { text: `Llegan el ${dd.toLowerCase()}` }));
-      const cards = el('div', { class: 'cards' });
-      P.pedidos.filter(x => x.dia === dd).forEach(x => cards.append(pedidoCard(x, dd === d)));
-      wrap.append(cards);
-    });
-    main.append(wrap);
-    main.append(el('p', { class: 'foot', text: 'Barra: un pedido el jueves para toda la semana. Vegetales y panes: martes, jueves y sábado. Carnes y pescados: martes (producción de martes y miércoles) y jueves (jueves a domingo). Lácteos, abarrotes y congelados: martes, para toda la semana.' }));
+    const fams = [...new Set(P.pedidos.map(x => x.nombre))];
+    if (!fams.includes(S.fam)) S.fam = fams[0];
+    famBotones(fams); $('#dianom').textContent = S.fam;
+    const lst = P.pedidos.filter(x => x.nombre === S.fam);
+    main.append(el('section', { class: 'group' }, el('h2', { text: S.fam }),
+      el('p', { class: 'sub', text: `${lst.length === 1 ? 'Un pedido' : lst.length + ' pedidos'} por semana: ${lst.map(x => x.dia.toLowerCase()).join(', ')}. Sugerido = venta de la semana 20-25 oct + materia prima de la producción, + 20% (no descuenta bodega). Escribe en "Pedir" otra cantidad si quieres; es la que se copia.` })));
+    lst.forEach(x => main.append(pedidoCard(x)));
+    main.append(el('p', { class: 'foot', text: 'Vegetales y panes: martes, jueves y sábado. Carnes y pescados frescos: martes y jueves. Congelados (camarones, ostiones, jaiba), lácteos y abarrotes: martes, para toda la semana. Barra: jueves, para toda la semana.' }));
   }
-  function pedidoCard(x, esHoy) {
+  function pedidoCard(x) {
     const tb = el('tbody'); let fam = null;
     x.items.forEach(i => {
-      if (i.grupo !== fam) { fam = i.grupo; tb.append(el('tr', null, el('td', { class: 'fam', colspan: 2, text: fam }))); }
-      tb.append(el('tr', null, el('td', { text: i.art }), el('td', { text: qty(i.cant, i.un) + ' ' + (UN[i.un] || i.un) })));
+      if (x.nombre === 'Barra' && i.grupo !== fam) { fam = i.grupo; tb.append(el('tr', null, el('td', { class: 'fam', colspan: 3, text: fam }))); }
+      const inp = el('input', { type: 'number', min: '0', step: (i.un === 'kg' || i.un === 'lt') ? '0.1' : '1', inputmode: 'decimal', class: 'alt', 'aria-label': 'Pedir ' + i.art, placeholder: qty(i.cant, i.un) });
+      inp.value = getAlt(x, i);
+      inp.addEventListener('input', () => setAlt(x, i, inp.value.trim()));
+      tb.append(el('tr', null, el('td', { text: i.art }), el('td', { class: 'sug', text: qty(i.cant, i.un) + ' ' + (UN[i.un] || i.un) }), el('td', null, inp)));
     });
-    const texto = () => `Pedido ${x.nombre} · llega ${x.dia.toLowerCase()}\n` + x.items.map(i => `- ${i.art}: ${qty(i.cant, i.un)} ${UN[i.un] || i.un}`).join('\n');
-    const copiar = el('button', { type: 'button', class: 'btn', text: 'Copiar lista' });
-    copiar.addEventListener('click', async () => { try { await navigator.clipboard.writeText(texto()); toast('Lista copiada. Pégala en WhatsApp o en el correo al proveedor.'); } catch (e) { toast('No se pudo copiar en este navegador.'); } });
-    const det = el('details', null, el('summary', { text: `Ver ${x.items.length} productos` }), el('table', null, tb));
-    if (esHoy) det.open = true;
-    return el('article', { class: 'ped' + (esHoy ? ' hoy' : '') },
-      el('header', null, el('h4', { text: x.nombre }), el('span', { class: 'cubre', text: 'Cubre ' + x.cubre.map(c => c.slice(0, 3).toLowerCase()).join(', ') })),
+    const texto = () => `Pedido ${x.nombre} · llega ${x.dia.toLowerCase()}\n` + x.items.map(i => {
+      const a = getAlt(x, i); const n = a !== '' ? Number(a) : i.cant;
+      return n > 0 ? `- ${i.art}: ${qty(n, i.un)} ${UN[i.un] || i.un}` : null; }).filter(Boolean).join('\n');
+    const copiar = el('button', { type: 'button', class: 'btn pri', text: 'Copiar lista' });
+    copiar.addEventListener('click', async () => { try { await navigator.clipboard.writeText(texto()); toast('Lista copiada con tus cantidades. Pégala en WhatsApp o en el correo al proveedor.'); } catch (e) { toast('No se pudo copiar en este navegador.'); } });
+    const limpiar = el('button', { type: 'button', class: 'btn', text: 'Volver al sugerido' });
+    limpiar.addEventListener('click', () => { x.items.forEach(i => setAlt(x, i, '')); render(); });
+    return el('article', { class: 'ped' },
+      el('header', null, el('h4', { text: 'Llega el ' + x.dia.toLowerCase() }), el('span', { class: 'cubre', text: 'Cubre ' + x.cubre.map(c => c.slice(0, 3).toLowerCase()).join(', ') + ' · ' + x.items.length + ' productos' })),
       x.nota ? el('p', { class: 'pill warn', style: 'border-radius:8px;padding:8px 10px;font-weight:500;line-height:1.4', text: x.nota }) : null,
-      el('div', { class: 'acts' }, copiar), det);
+      el('table', null, el('thead', null, el('tr', null, el('th', { text: 'Producto' }), el('th', { class: 'sug', text: 'Sugerido' }), el('th', { text: 'Pedir' }))), tb),
+      el('div', { class: 'acts' }, copiar, limpiar));
   }
 
   function renderSelector() {
