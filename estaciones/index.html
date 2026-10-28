@@ -29,9 +29,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .brand { font-family: var(--display); font-weight: 600; font-size: 1.45rem; letter-spacing: .01em; margin: 0; }
 .brand small { font-family: var(--body); font-weight: 400; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin-left: .5rem; }
 .date { display: flex; align-items: center; gap: 6px; }
-.date button, .date input { font: inherit; color: var(--band-fg); background: transparent; border: 1px solid color-mix(in srgb, var(--band-fg) 35%, transparent); border-radius: 8px; padding: 6px 10px; min-height: 36px; }
-.date button { cursor: pointer; min-width: 36px; }
-.date input { color-scheme: dark; }
+.date { flex-wrap: wrap; }
+.date button { font: inherit; font-weight: 500; color: var(--band-fg); background: transparent; border: 1px solid color-mix(in srgb, var(--band-fg) 35%, transparent); border-radius: 8px; padding: 6px 10px; min-height: 36px; min-width: 44px; cursor: pointer; }
+.date button[aria-pressed="true"] { background: var(--band-fg); color: var(--navy-deep); border-color: var(--band-fg); font-weight: 600; }
 .fechabox { display: grid; justify-items: end; gap: 6px; }
 .dianom { font-family: var(--display); font-weight: 600; font-size: 2rem; line-height: 1; letter-spacing: .01em; color: #fff; }
 @media (max-width: 560px) { .fechabox { justify-items: start; } }
@@ -131,12 +131,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     <h1 class="brand">Autoclub <small>Stocks y producción</small></h1>
     <div class="fechabox">
     <span class="dianom" id="dianom" aria-live="polite"></span>
-    <div class="date">
-      <button id="prev" aria-label="Día anterior">‹</button>
-      <input id="fecha" type="date" aria-label="Fecha">
-      <button id="next" aria-label="Día siguiente">›</button>
-      <button id="hoy">Hoy</button>
-    </div>
+    <div class="date" id="dias" role="group" aria-label="Día de la semana"></div>
     </div>
   </div>
   <nav class="tabs" aria-label="Vistas">
@@ -168,7 +163,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 
   function hoyISO() { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
   function dia(f) { return DIAS[new Date(f + 'T12:00:00').getDay()]; }
-  function fmtF(f) { return new Date(f + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' }); }
+  function fmtF(f) { return dia(f).toLowerCase(); }  // la vista trabaja por día de la semana; la fecha solo ordena los checks
   function shift(f, n) { const d = new Date(f + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
   function qty(v, un) { const n = Number(v); const s = (un === 'kg' || un === 'lt') ? n.toLocaleString('es-CL', { maximumFractionDigits: 1 }) : n.toLocaleString('es-CL'); return s; }
   function el(tag, attrs, ...kids) { const e = document.createElement(tag); if (attrs) for (const k in attrs) { if (k === 'class') e.className = attrs[k]; else if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); } kids.flat().forEach(k => k != null && e.append(k)); return e; }
@@ -192,13 +187,15 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     render(); }
   window.addEventListener('hashchange', readHash);
   $('#cambiar').addEventListener('click', e => { e.preventDefault(); setModo(null); history.replaceState(null, '', location.pathname); readHash(); });
-  $('#fecha').value = S.fecha;
-  $('#fecha').addEventListener('change', e => { if (e.target.value) setFecha(e.target.value); });
-  $('#prev').addEventListener('click', () => setFecha(shift(S.fecha, -1)));
-  $('#next').addEventListener('click', () => setFecha(shift(S.fecha, 1)));
-  $('#hoy').addEventListener('click', () => setFecha(hoyISO()));
-  function setFecha(f) { S.fecha = f; $('#fecha').value = f; diaNom(); subChecks(); render(); }
-  function diaNom() { $('#dianom').textContent = dia(S.fecha); }
+  // semana de trabajo martes-domingo que contiene hoy (el lunes ya muestra la semana que empieza mañana).
+  // Los checks se guardan con la fecha real, así cada semana parte en blanco.
+  const SEMANA = ['Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  function martesDeSemana() { const h = hoyISO(), w = new Date(h + 'T12:00:00').getDay(); return shift(h, w === 1 ? 1 : w === 0 ? -5 : 2 - w); }
+  const fechaDe = d => shift(martesDeSemana(), SEMANA.indexOf(d));
+  if (dia(S.fecha) === 'Lunes') S.fecha = martesDeSemana();
+  SEMANA.forEach(d => { const b = el('button', { type: 'button', 'data-d': d, text: d.slice(0, 3) }); b.addEventListener('click', () => setFecha(fechaDe(d))); $('#dias').append(b); });
+  function setFecha(f) { S.fecha = f; diaNom(); subChecks(); render(); }
+  function diaNom() { $('#dianom').textContent = dia(S.fecha); document.querySelectorAll('#dias button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.d === dia(S.fecha)))); }
   diaNom();
 
   // ---- datos: plan fijo en plan.json; checks en Supabase (leer y escribir abierto vía marcar())
