@@ -89,6 +89,24 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 .week thead th { color: var(--muted); font-weight: 600; font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; }
 .week td.today, .week th.today { background: color-mix(in srgb, var(--navy) 9%, transparent); }
 .week tfoot td { font-weight: 600; }
+.ped { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.ped.hoy { border-color: var(--navy); box-shadow: 0 0 0 1px var(--navy); }
+.ped header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ped h4 { font-family: var(--display); font-size: 1.2rem; font-weight: 600; margin: 0; }
+.ped .cubre { font-size: .8rem; color: var(--muted); }
+.ped details summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+.ped table { width: 100%; border-collapse: collapse; font-size: .86rem; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.ped td { padding: 5px 0; border-bottom: 1px solid var(--rule); }
+.ped td:last-child { text-align: right; white-space: nowrap; font-weight: 600; }
+.ped td.fam { padding-top: 12px; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; border-bottom: 0; }
+.ped .acts { display: flex; gap: 8px; }
+.dias-ped { display: grid; gap: 18px; }
+.tabs a.cambiar { margin-left: auto; opacity: .85; font-weight: 400; text-decoration: underline; text-underline-offset: 3px; }
+.selector { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); }
+.selector button { font: inherit; text-align: left; cursor: pointer; background: var(--panel); color: var(--ink); border: 1px solid var(--rule); border-radius: 14px; padding: 20px 18px; min-height: 84px; display: grid; gap: 4px; }
+.selector button:hover { border-color: var(--navy); }
+.selector b { font-family: var(--display); font-size: 1.4rem; font-weight: 600; }
+.selector span { color: var(--muted); font-size: .85rem; }
 .foot { color: var(--muted); font-size: .8rem; line-height: 1.5; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--cream); padding: 10px 16px; border-radius: 10px; font-size: .88rem; z-index: 20; max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
@@ -128,6 +146,8 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     <a href="#frio" data-v="frio">Cuarto frío</a>
     <a href="#caliente" data-v="caliente">Cuarto caliente</a>
     <a href="#produccion" data-v="produccion">Producción</a>
+    <a href="#pedidos" data-v="pedidos">Pedidos</a>
+    <a href="#" id="cambiar" class="cambiar" hidden>Cambiar de estación</a>
   </nav>
 </div></div>
 
@@ -165,10 +185,22 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   const docId = (f, est) => f + '_' + est;
 
   // ---- navegación
-  function readHash() { const h = location.hash.slice(1); S.vista = ['admin', 'barra', 'plancha', 'frio', 'caliente', 'produccion'].includes(h) ? h : 'admin';
+  // cada equipo elige su vista una vez (queda recordada); el admin ve todas las pestañas
+  const VISTAS = { admin: ['Admin / Chef', 'Avance de todas las estaciones, producción y pedidos'], barra: ['Barra', 'Bebidas, jugos y pisco sour'],
+    plancha: ['Plancha', 'Sándwiches y completos'], frio: ['Cuarto frío', 'Ceviches, ensaladas y postres'], caliente: ['Cuarto caliente', 'Fondos, pastas y frituras'],
+    produccion: ['Producción', 'Proteínas y empanaditas del día'] };
+  function getModo() { try { return localStorage.getItem('autoclub_modo'); } catch (e) { return S.modoMem || null; } }
+  function setModo(m) { S.modoMem = m; try { m ? localStorage.setItem('autoclub_modo', m) : localStorage.removeItem('autoclub_modo'); } catch (e) {} }
+  function readHash() { const h = location.hash.slice(1), modo = getModo();
+    if (!modo) S.vista = 'selector';
+    else if (modo !== 'admin') S.vista = modo;
+    else S.vista = ['admin', 'barra', 'plancha', 'frio', 'caliente', 'produccion', 'pedidos'].includes(h) ? h : 'admin';
+    document.querySelectorAll('.tabs a[data-v]').forEach(a => a.hidden = !(modo === 'admin' || a.dataset.v === modo));
+    $('#cambiar').hidden = !modo;
     document.querySelectorAll('.tabs a').forEach(a => a.dataset.v === S.vista ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
     render(); }
   window.addEventListener('hashchange', readHash);
+  $('#cambiar').addEventListener('click', e => { e.preventDefault(); setModo(null); history.replaceState(null, '', location.pathname); readHash(); });
   $('#fecha').value = S.fecha;
   $('#fecha').addEventListener('change', e => { if (e.target.value) setFecha(e.target.value); });
   $('#prev').addEventListener('click', () => setFecha(shift(S.fecha, -1)));
@@ -182,7 +214,8 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   const SUPA_URL = 'https://rrsmeduifzgalmxbaacj.supabase.co', SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyc21lZHVpZnpnYWxteGJhYWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxNzMzNDMsImV4cCI6MjEwODc0OTM0M30.y__Xoz9-M-yUH1WNwoc7Z64-HOYqE2myjFDGYj1qwzc';
   async function boot() {
     readHash();
-    try { const r = await fetch('plan.json', { cache: 'no-cache' }); const j = await r.json(); S.plan = j.plan; S.meta = j.meta; S.loaded = true; }
+    try { const r = await fetch('plan.json', { cache: 'no-cache' }); const j = await r.json(); S.plan = j.plan; S.meta = j.meta; S.loaded = true;
+      try { const rp = await fetch('pedidos.json', { cache: 'no-cache' }); S.pedidos = await rp.json(); } catch (e) { S.pedidos = null; } }
     catch (e) { S.err = 'No se pudo leer el plan de stocks. Recarga la página.'; render(); return; }
     if (!window.supabase) { S.err = 'No se pudo conectar con la base de checks. Revisa la conexión y recarga.'; render(); return; }
     S.db = window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } });
@@ -208,7 +241,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   function setCred(est, c) { try { c ? localStorage.setItem(credKey(est), JSON.stringify(c)) : localStorage.removeItem(credKey(est)); } catch (e) { S.mem = c; } }
   function pedirPin(est, luego) {
     const dlg = $('#dlg'), f = $('#dlg-form'), err = $('#dlg-err');
-    $('#dlg-est').textContent = est === 'produccion' ? 'Producción' : EST[est];
+    $('#dlg-est').textContent = VISTAS[est] ? VISTAS[est][0] : est;
     err.textContent = ''; $('#dlg-pin').value = '';
     const prev = getCred(est); $('#dlg-nombre').value = prev ? prev.nombre : '';
     f.onsubmit = async ev => {
@@ -254,9 +287,11 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     if (S.err) { main.append(el('div', { class: 'notice', text: S.err })); return; }
     if (!S.loaded) { main.append(el('div', { class: 'notice', text: 'Cargando la lista de stocks del día…' })); return; }
     if (!Object.keys(S.plan).length) { main.append(el('div', { class: 'notice', text: 'Todavía no hay un plan de stocks cargado. Cuando el administrador lo cargue, cada estación verá aquí su lista del día.' })); return; }
+    if (S.vista === 'selector') return renderSelector();
     const d = dia(S.fecha);
     if (S.vista === 'admin') return renderAdmin(d);
     if (S.vista === 'produccion') return renderProd(d);
+    if (S.vista === 'pedidos') return renderPedidos(d);
     return renderEst(S.vista, d);
   }
 
@@ -406,6 +441,57 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
         el('span', { class: 'name' }, el('span', { text: r.art }), who ? el('span', { class: 'meta', text: who }) : null),
         el('span', { class: 'q', text: qty(r.q, r.un) + ' ' + (UN[r.un] || r.un) }));
     }));
+  }
+
+  // ---- pedidos: calendario semanal fijo (necesidad del período, sin descontar bodega)
+  function renderPedidos(d) {
+    main.append(el('section', { class: 'group' }, el('h2', { text: 'Pedidos' }),
+      el('p', { class: 'sub', text: 'Cuánto pedir para que cada cosa llegue antes de usarse: venta de la semana 20-25 oct + materia prima de la producción, + 20%. No descuenta lo que haya en bodega: réstalo al pedir.' })));
+    const P = S.pedidos;
+    if (!P) { main.append(el('div', { class: 'notice', text: 'No se pudo cargar la lista de pedidos. Recarga la página.' })); return; }
+    const dias = [...new Set(P.pedidos.map(x => x.dia))];
+    const hoy = P.pedidos.filter(x => x.dia === d);
+    main.append(el('p', { class: 'sub', text: hoy.length ? `${d}: hoy llegan ${hoy.length} pedido${hoy.length > 1 ? 's' : ''} (marcados en azul).` : `${d}: no llegan pedidos. Próximos: ${dias.join(', ')}.` }));
+    const wrap = el('div', { class: 'dias-ped' });
+    dias.forEach(dd => {
+      wrap.append(el('h3', { text: `Llegan el ${dd.toLowerCase()}` }));
+      const cards = el('div', { class: 'cards' });
+      P.pedidos.filter(x => x.dia === dd).forEach(x => cards.append(pedidoCard(x, dd === d)));
+      wrap.append(cards);
+    });
+    main.append(wrap);
+    main.append(el('p', { class: 'foot', text: 'Barra: un pedido el jueves para toda la semana. Vegetales y panes: martes, jueves y sábado. Carnes y pescados: martes (producción de martes y miércoles) y jueves (jueves a domingo). Lácteos, abarrotes y congelados: martes, para toda la semana.' }));
+  }
+  function pedidoCard(x, esHoy) {
+    const tb = el('tbody'); let fam = null;
+    x.items.forEach(i => {
+      if (i.grupo !== fam) { fam = i.grupo; tb.append(el('tr', null, el('td', { class: 'fam', colspan: 2, text: fam }))); }
+      tb.append(el('tr', null, el('td', { text: i.art }), el('td', { text: qty(i.cant, i.un) + ' ' + (UN[i.un] || i.un) })));
+    });
+    const texto = () => `Pedido ${x.nombre} · llega ${x.dia.toLowerCase()}\n` + x.items.map(i => `- ${i.art}: ${qty(i.cant, i.un)} ${UN[i.un] || i.un}`).join('\n');
+    const copiar = el('button', { type: 'button', class: 'btn', text: 'Copiar lista' });
+    copiar.addEventListener('click', async () => { try { await navigator.clipboard.writeText(texto()); toast('Lista copiada. Pégala en WhatsApp o en el correo al proveedor.'); } catch (e) { toast('No se pudo copiar en este navegador.'); } });
+    const det = el('details', null, el('summary', { text: `Ver ${x.items.length} productos` }), el('table', null, tb));
+    if (esHoy) det.open = true;
+    return el('article', { class: 'ped' + (esHoy ? ' hoy' : '') },
+      el('header', null, el('h4', { text: x.nombre }), el('span', { class: 'cubre', text: 'Cubre ' + x.cubre.map(c => c.slice(0, 3).toLowerCase()).join(', ') })),
+      el('div', { class: 'acts' }, copiar), det);
+  }
+
+  function renderSelector() {
+    main.append(el('section', { class: 'group' }, el('h2', { text: '¿Dónde trabajas hoy?' }),
+      el('p', { class: 'sub', text: 'Elige tu estación. Se pide tu nombre y el PIN una sola vez; después este equipo entra directo.' })));
+    const g = el('div', { class: 'selector' });
+    Object.entries(VISTAS).forEach(([v, [nom, desc]]) => {
+      const b = el('button', { type: 'button' }, el('b', { text: nom }), el('span', { text: desc }));
+      const entrar = () => { setModo(v); location.hash = v; readHash(); };
+      b.addEventListener('click', () => {
+        const c = v === 'admin' ? (() => { try { return JSON.parse(localStorage.getItem(credKey('admin')) || 'null'); } catch (e) { return null; } })() : getCred(v);
+        if (c) entrar(); else if (S.db) pedirPin(v, entrar); else toast('Sin conexión a la base de checks. Recarga la página.');
+      });
+      g.append(b);
+    });
+    main.append(g);
   }
 
   function foot() {
