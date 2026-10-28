@@ -32,7 +32,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .date button, .date input { font: inherit; color: var(--band-fg); background: transparent; border: 1px solid color-mix(in srgb, var(--band-fg) 35%, transparent); border-radius: 8px; padding: 6px 10px; min-height: 36px; }
 .date button { cursor: pointer; min-width: 36px; }
 .date input { color-scheme: dark; }
-.dianom { font-family: var(--display); font-weight: 600; font-size: 1.15rem; margin-right: 4px; text-transform: capitalize; }
+.fechabox { display: grid; justify-items: end; gap: 6px; }
+.dianom { font-family: var(--display); font-weight: 600; font-size: 2rem; line-height: 1; letter-spacing: .01em; color: #fff; }
+@media (max-width: 560px) { .fechabox { justify-items: start; } }
 .tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs a { color: var(--band-fg); opacity: .72; text-decoration: none; padding: 10px 12px 12px; white-space: nowrap; border-bottom: 3px solid transparent; font-weight: 500; }
@@ -109,12 +111,14 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 <div class="band"><div class="band-in">
   <div class="top">
     <h1 class="brand">Autoclub <small>Stocks y producción</small></h1>
+    <div class="fechabox">
+    <span class="dianom" id="dianom" aria-live="polite"></span>
     <div class="date">
-      <span class="dianom" id="dianom" aria-live="polite"></span>
       <button id="prev" aria-label="Día anterior">‹</button>
       <input id="fecha" type="date" aria-label="Fecha">
       <button id="next" aria-label="Día siguiente">›</button>
       <button id="hoy">Hoy</button>
+    </div>
     </div>
   </div>
   <nav class="tabs" aria-label="Vistas">
