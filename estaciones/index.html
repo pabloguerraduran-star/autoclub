@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Estaciones Autoclub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap">
+<style>
+/* Layout: banda navy con fecha y pestañas por estación; debajo, lista de checks a pantalla completa pensada para el celular del equipo. */
+:root {
+  --navy: #1A1A78; --navy-deep: #12124f; --cream: #F5F0E6; --panel: #FBF8F1; --ink: #1d1b2e; --muted: #6b6880;
+  --rule: #dcd6c6; --ok: #1f7a4a; --ok-bg: #e3f1e8; --warn: #9a5b00; --warn-bg: #fbeed6; --band-fg: #F5F0E6;
+  --display: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  --body: 'Libre Franklin', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --navy: #9c9cf2; --navy-deep: #15153a; --cream: #141322; --panel: #1c1b2e; --ink: #ecebf5; --muted: #a3a1b8;
+  --rule: #34324a; --ok: #6fd39c; --ok-bg: #173826; --warn: #f0b95c; --warn-bg: #3a2b12; --band-fg: #ecebf5; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --navy: #9c9cf2; --navy-deep: #15153a; --cream: #141322; --panel: #1c1b2e; --ink: #ecebf5; --muted: #a3a1b8;
+  --rule: #34324a; --ok: #6fd39c; --ok-bg: #173826; --warn: #f0b95c; --warn-bg: #3a2b12; --band-fg: #ecebf5; color-scheme: dark; }
+body { background: var(--cream); color: var(--ink); font-family: var(--body); font-size: 15px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--navy-deep); }
+.band { background: var(--navy-deep); color: var(--band-fg); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; }
+.band-in { max-width: 60rem; margin: 0 auto; padding-block: 14px 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 10px; }
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.brand { font-family: var(--display); font-weight: 600; font-size: 1.45rem; letter-spacing: .01em; margin: 0; }
+.brand small { font-family: var(--body); font-weight: 400; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin-left: .5rem; }
+.date { display: flex; align-items: center; gap: 6px; }
+.date button, .date input { font: inherit; color: var(--band-fg); background: transparent; border: 1px solid color-mix(in srgb, var(--band-fg) 35%, transparent); border-radius: 8px; padding: 6px 10px; min-height: 36px; }
+.date button { cursor: pointer; min-width: 36px; }
+.date input { color-scheme: dark; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a { color: var(--band-fg); opacity: .72; text-decoration: none; padding: 10px 12px 12px; white-space: nowrap; border-bottom: 3px solid transparent; font-weight: 500; }
+.tabs a[aria-current="page"] { opacity: 1; border-bottom-color: var(--band-fg); }
+.tabs a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+main { max-width: 60rem; margin: 0 auto; padding-block: 18px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 1.6rem; margin: 0; text-wrap: balance; }
+h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0; }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 62ch; line-height: 1.45; }
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.meter { flex: 1 1 12rem; height: 8px; background: var(--rule); border-radius: 99px; overflow: hidden; min-width: 8rem; }
+.meter i { display: block; height: 100%; background: var(--ok); border-radius: 99px; transition: width .3s; }
+.count { font-variant-numeric: tabular-nums; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
+.pill.ok { color: var(--ok); background: var(--ok-bg); } .pill.warn { color: var(--warn); background: var(--warn-bg); }
+.group { display: grid; gap: 8px; }
+.list { display: grid; gap: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
+.item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--rule); cursor: pointer; min-height: 52px; }
+.item:first-child { border-top: 0; }
+.item input { width: 24px; height: 24px; accent-color: var(--ok); margin: 0; cursor: pointer; }
+.item .name { min-width: 0; line-height: 1.3; }
+.item .meta { display: block; font-size: .76rem; color: var(--muted); margin-top: 2px; }
+.item .qty { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; white-space: nowrap; }
+.item .qty small { font-weight: 400; color: var(--muted); margin-left: 3px; }
+.item.done { background: color-mix(in srgb, var(--ok-bg) 55%, var(--panel)); }
+.item.done .name > span:first-child { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ink) 40%, transparent); }
+.tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.tools input[type=search] { font: inherit; flex: 1 1 14rem; padding: 9px 12px; border: 1px solid var(--rule); border-radius: 10px; background: var(--panel); color: var(--ink); min-width: 0; }
+.tools label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: .85rem; cursor: pointer; }
+.cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.card header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card h4 { font-family: var(--display); font-size: 1.25rem; font-weight: 600; margin: 0; }
+.card a { color: var(--navy); font-weight: 500; font-size: .85rem; }
+.pend { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: .86rem; max-height: 12rem; overflow: auto; }
+.pend li { display: flex; justify-content: space-between; gap: 8px; }
+.pend li span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chk { margin: 0; padding: 0; list-style: none; font-size: .86rem; max-height: 24rem; overflow: auto; border-top: 1px solid var(--rule); }
+.chk li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.chk .tick { width: 18px; height: 18px; border: 1.5px solid var(--rule); border-radius: 4px; display: grid; place-items: center; font-size: .75rem; font-weight: 700; line-height: 1; }
+.chk li.done .tick { background: var(--ok); border-color: var(--ok); color: var(--panel); }
+.chk li.done { color: var(--muted); }
+.chk .name { min-width: 0; line-height: 1.25; }
+.chk .meta { display: block; font-size: .72rem; color: var(--ok); }
+.chk .q { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.who { font-size: .78rem; color: var(--muted); }
+.notice { background: var(--panel); border: 1px dashed var(--rule); border-radius: 12px; padding: 18px; color: var(--muted); line-height: 1.5; }
+.week { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; }
+.week table { border-collapse: collapse; width: 100%; font-size: .84rem; font-variant-numeric: tabular-nums; }
+.week th, .week td { padding: 8px 10px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+.week th:first-child, .week td:first-child { text-align: left; white-space: normal; min-width: 11rem; }
+.week thead th { color: var(--muted); font-weight: 600; font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; }
+.week td.today, .week th.today { background: color-mix(in srgb, var(--navy) 9%, transparent); }
+.week tfoot td { font-weight: 600; }
+.foot { color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--cream); padding: 10px 16px; border-radius: 10px; font-size: .88rem; z-index: 20; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+.dlg { border: 1px solid var(--rule); border-radius: 14px; background: var(--panel); color: var(--ink); padding: 20px; width: min(22rem, calc(100% - 32px)); }
+.dlg::backdrop { background: rgb(0 0 0 / .45); }
+.dlg form { display: grid; gap: 12px; }
+.dlg label { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
+.dlg input { font: inherit; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 10px; background: var(--cream); color: var(--ink); }
+.dlg .acts { display: flex; gap: 8px; justify-content: flex-end; }
+.btn { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 10px; border: 1px solid var(--rule); background: transparent; color: var(--ink); cursor: pointer; }
+.btn.pri { background: var(--navy-deep); border-color: var(--navy-deep); color: #F5F0E6; }
+.dlg .err { color: var(--warn); font-size: .85rem; margin: 0; min-height: 1.2em; }
+.cred { font-size: .82rem; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cred button { font: inherit; color: var(--navy); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+</style>
+</head>
+<body>
+
+
+<div class="band"><div class="band-in">
+  <div class="top">
+    <h1 class="brand">Autoclub <small>Stocks y producción</small></h1>
+    <div class="date">
+      <button id="prev" aria-label="Día anterior">‹</button>
+      <input id="fecha" type="date" aria-label="Fecha">
+      <button id="next" aria-label="Día siguiente">›</button>
+      <button id="hoy">Hoy</button>
+    </div>
+  </div>
+  <nav class="tabs" aria-label="Vistas">
+    <a href="#admin" data-v="admin">Admin / Chef</a>
+    <a href="#barra" data-v="barra">Barra</a>
+    <a href="#plancha" data-v="plancha">Plancha</a>
+    <a href="#frio" data-v="frio">Cuarto frío</a>
+    <a href="#caliente" data-v="caliente">Cuarto caliente</a>
+    <a href="#produccion" data-v="produccion">Producción</a>
+  </nav>
+</div></div>
+
+<main id="main">
+  <div class="notice" id="boot">Cargando la lista de stocks del día. Cada estación verá aquí sus insumos y preparaciones con la cantidad que debe tener antes de abrir.</div>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<dialog class="dlg" id="dlg" aria-labelledby="dlg-t">
+  <form id="dlg-form" method="dialog">
+    <h3 id="dlg-t">PIN · <span id="dlg-est"></span></h3>
+    <label>Tu nombre<input id="dlg-nombre" autocomplete="name" maxlength="40"></label>
+    <label>PIN de la estación<input id="dlg-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>
+    <p class="err" id="dlg-err" role="alert"></p>
+    <div class="acts"><button type="button" class="btn" id="dlg-cancel">Cancelar</button><button class="btn pri">Entrar</button></div>
+  </form>
+</dialog>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+(function () {
+  const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const EST = { barra: 'Barra', plancha: 'Plancha', frio: 'Cuarto frío', caliente: 'Cuarto caliente' };
+  const UN = { un: 'un', kg: 'kg', lt: 'lt', bot: 'bot', entero: 'entero', atado: 'atado', frasco: 'frasco' };
+  const $ = s => document.querySelector(s);
+  const main = $('#main');
+  const S = { vista: 'admin', fecha: hoyISO(), plan: {}, meta: null, checks: {}, db: null, user: null, uid: null, canWrite: true, names: {}, q: '', soloPend: false, unsubChecks: null, err: null };
+
+  function hoyISO() { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function dia(f) { return DIAS[new Date(f + 'T12:00:00').getDay()]; }
+  function fmtF(f) { return new Date(f + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' }); }
+  function shift(f, n) { const d = new Date(f + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  function qty(v, un) { const n = Number(v); const s = (un === 'kg' || un === 'lt') ? n.toLocaleString('es-CL', { maximumFractionDigits: 1 }) : n.toLocaleString('es-CL'); return s; }
+  function el(tag, attrs, ...kids) { const e = document.createElement(tag); if (attrs) for (const k in attrs) { if (k === 'class') e.className = attrs[k]; else if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); } kids.flat().forEach(k => k != null && e.append(k)); return e; }
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3500); }
+  const docId = (f, est) => f + '_' + est;
+
+  // ---- navegación
+  function readHash() { const h = location.hash.slice(1); S.vista = ['admin', 'barra', 'plancha', 'frio', 'caliente', 'produccion'].includes(h) ? h : 'admin';
+    document.querySelectorAll('.tabs a').forEach(a => a.dataset.v === S.vista ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+    render(); }
+  window.addEventListener('hashchange', readHash);
+  $('#fecha').value = S.fecha;
+  $('#fecha').addEventListener('change', e => { if (e.target.value) setFecha(e.target.value); });
+  $('#prev').addEventListener('click', () => setFecha(shift(S.fecha, -1)));
+  $('#next').addEventListener('click', () => setFecha(shift(S.fecha, 1)));
+  $('#hoy').addEventListener('click', () => setFecha(hoyISO()));
+  function setFecha(f) { S.fecha = f; $('#fecha').value = f; subChecks(); render(); }
+
+  // ---- datos: plan fijo en plan.json; checks en Supabase (leer libre, escribir con PIN vía marcar())
+  const SUPA_URL = 'https://rrsmeduifzgalmxbaacj.supabase.co', SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyc21lZHVpZnpnYWxteGJhYWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxNzMzNDMsImV4cCI6MjEwODc0OTM0M30.y__Xoz9-M-yUH1WNwoc7Z64-HOYqE2myjFDGYj1qwzc';
+  async function boot() {
+    readHash();
+    try { const r = await fetch('plan.json', { cache: 'no-cache' }); const j = await r.json(); S.plan = j.plan; S.meta = j.meta; S.loaded = true; }
+    catch (e) { S.err = 'No se pudo leer el plan de stocks. Recarga la página.'; render(); return; }
+    if (!window.supabase) { S.err = 'No se pudo conectar con la base de checks. Revisa la conexión y recarga.'; render(); return; }
+    S.db = window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } });
+    S.db.channel('checks').on('postgres_changes', { event: '*', schema: 'public', table: 'checks' }, p => {
+      const r = p.new; if (r && r.fecha === S.fecha) { put(r); render(); } }).subscribe(st => { if (st === 'SUBSCRIBED') loadChecks(); });
+    setInterval(loadChecks, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) loadChecks(); });
+    loadChecks(); render();
+  }
+  function put(r) { const id = docId(r.fecha, r.estacion); const c = S.checks[id] || (S.checks[id] = { items: {} }); c.items[r.cod] = { ok: r.ok, by: r.nombre, at: r.at }; }
+  async function loadChecks() {
+    if (!S.db) return; const f = S.fecha;
+    const { data, error } = await S.db.from('checks').select('*').eq('fecha', f);
+    if (f !== S.fecha) return;
+    if (error) { toast('No se pudieron leer los checks. Revisa la conexión.'); return; }
+    S.checks = {}; data.forEach(put); render();
+  }
+  function subChecks() { S.checks = {}; loadChecks(); }
+
+  // ---- PIN por estación (el PIN de admin sirve en todas). Se recuerda en este equipo.
+  const credKey = est => 'autoclub_cred_' + est;
+  function getCred(est) { try { return JSON.parse(localStorage.getItem(credKey(est)) || 'null') || JSON.parse(localStorage.getItem(credKey('admin')) || 'null'); } catch (e) { return null; } }
+  function setCred(est, c) { try { c ? localStorage.setItem(credKey(est), JSON.stringify(c)) : localStorage.removeItem(credKey(est)); } catch (e) { S.mem = c; } }
+  function pedirPin(est, luego) {
+    const dlg = $('#dlg'), f = $('#dlg-form'), err = $('#dlg-err');
+    $('#dlg-est').textContent = est === 'produccion' ? 'Producción' : EST[est];
+    err.textContent = ''; $('#dlg-pin').value = '';
+    const prev = getCred(est); $('#dlg-nombre').value = prev ? prev.nombre : '';
+    f.onsubmit = async ev => {
+      ev.preventDefault();
+      const nombre = $('#dlg-nombre').value.trim(), pin = $('#dlg-pin').value.trim();
+      if (!nombre) { err.textContent = 'Escribe tu nombre.'; return; }
+      const { data, error } = await S.db.rpc('pin_ok', { p_estacion: est, p_pin: pin });
+      if (error) { err.textContent = 'No se pudo validar. Revisa la conexión.'; return; }
+      if (!data) { err.textContent = 'PIN incorrecto.'; return; }
+      setCred(est, { nombre, pin }); dlg.close(); render(); if (luego) luego();
+    };
+    $('#dlg-cancel').onclick = () => dlg.close();
+    dlg.showModal(); $('#dlg-nombre').value ? $('#dlg-pin').focus() : $('#dlg-nombre').focus();
+  }
+  function credBar(est) {
+    const c = getCred(est);
+    const b = el('button', { type: 'button', text: c ? 'cambiar' : 'ingresar PIN' }); b.addEventListener('click', () => pedirPin(est));
+    return el('p', { class: 'cred' }, c ? `Marcando como ${c.nombre}` : 'Para marcar necesitas el PIN de la estación.', b);
+  }
+  const writing = {};
+  async function toggle(est, cod, ok) {
+    if (!S.db) return;
+    const cred = getCred(est);
+    if (!cred) { render(); pedirPin(est, () => toggle(est, cod, ok)); return; }
+    put({ fecha: S.fecha, estacion: est, cod, ok, nombre: cred.nombre, at: new Date().toISOString() }); render();
+    const k = est + '/' + cod, f = S.fecha;
+    while (writing[k]) await writing[k];
+    const p = (async () => {
+      const { error } = await S.db.rpc('marcar', { p_fecha: f, p_estacion: est, p_cod: cod, p_ok: ok, p_pin: cred.pin, p_nombre: cred.nombre });
+      if (error) {
+        if (/pin/i.test(error.message || '')) { setCred(est, null); toast('El PIN cambió o no es válido. Vuelve a ingresarlo.'); }
+        else toast('No se guardó el check. Revisa la conexión y vuelve a marcarlo.');
+        loadChecks();
+      }
+    })();
+    writing[k] = p; await p; if (writing[k] === p) delete writing[k];
+  }
+  const isOk = (est, cod) => !!(((S.checks[docId(S.fecha, est)] || {}).items || {})[cod] || {}).ok;
+
+  // ---- vistas
+  function render() {
+    main.innerHTML = '';
+    if (S.err) { main.append(el('div', { class: 'notice', text: S.err })); return; }
+    if (!S.loaded) { main.append(el('div', { class: 'notice', text: 'Cargando la lista de stocks del día…' })); return; }
+    if (!Object.keys(S.plan).length) { main.append(el('div', { class: 'notice', text: 'Todavía no hay un plan de stocks cargado. Cuando el administrador lo cargue, cada estación verá aquí su lista del día.' })); return; }
+    const d = dia(S.fecha);
+    if (S.vista === 'admin') return renderAdmin(d);
+    if (S.vista === 'produccion') return renderProd(d);
+    return renderEst(S.vista, d);
+  }
+
+  function lunes(d) { if (d !== 'Lunes') return false;
+    main.append(el('div', { class: 'notice', text: 'Lunes: el local está cerrado y no hay personal. No hay stocks ni producción para revisar. Usa ‹ › para ir a otro día.' })); return true; }
+
+  function stationRows(est, d) { const p = S.plan[est]; if (!p) return [];
+    return p.items.map(i => ({ ...i, q: i.stock[d] })).filter(i => i.q != null && Number(i.q) > 0); }
+
+  function renderEst(est, d) {
+    const head = el('section', { class: 'group' },
+      el('h2', { text: EST[est] }), el('p', { class: 'sub', text: `Stock que debe quedar listo en la estación para el ${fmtF(S.fecha)}. Marca cada línea cuando lo tengas.` }));
+    main.append(head);
+    if (lunes(d)) return;
+    const rows = stationRows(est, d);
+    const done = rows.filter(r => isOk(est, r.cod)).length;
+    main.append(statusBar(done, rows.length));
+    main.append(credBar(est));
+    main.append(toolsBar());
+    const q = S.q.toLowerCase();
+    const vis = rows.filter(r => (!q || r.art.toLowerCase().includes(q)) && (!S.soloPend || !isOk(est, r.cod)));
+    const groups = [['PRO', 'Preparaciones (vienen de producción)'], ['INS', 'Insumos']];
+    groups.forEach(([t, lab]) => {
+      const g = vis.filter(r => r.tipo === t).sort((a, b) => a.art.localeCompare(b.art, 'es'));
+      if (!g.length) return;
+      main.append(el('section', { class: 'group' }, el('h3', { text: `${lab} · ${g.length}` }),
+        el('div', { class: 'list' }, g.map(r => itemRow(est, r.cod, r.art, r.q, r.un, null)))));
+    });
+    if (!vis.length) main.append(el('div', { class: 'notice', text: S.soloPend && rows.length ? 'Todo marcado. La estación está lista.' : 'Ningún ítem coincide con la búsqueda.' }));
+    main.append(foot());
+  }
+
+  function itemRow(est, cod, art, q, un, meta) {
+    const ok = isOk(est, cod);
+    const cb = el('input', { type: 'checkbox', id: 'c-' + est + '-' + cod, 'aria-label': art });
+    cb.checked = ok; cb.disabled = !S.canWrite;
+    cb.addEventListener('change', () => toggle(est, cod, cb.checked));
+    const mark = (((S.checks[docId(S.fecha, est)] || {}).items || {})[cod]) || null;
+    const who = ok && mark && mark.at ? `✓ ${mark.by || ''} ${new Date(mark.at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`.replace(/\s+/g, ' ') : null;
+    const name = el('span', { class: 'name' }, el('span', { text: art }), (meta || who) ? el('span', { class: 'meta', text: [meta, who].filter(Boolean).join(' · ') }) : null);
+    const row = el('label', { class: 'item' + (ok ? ' done' : ''), for: cb.id }, cb, name,
+      el('span', { class: 'qty' }, qty(q, un), el('small', { text: UN[un] || un })));
+    return row;
+  }
+
+  function statusBar(done, total) {
+    const pctv = total ? Math.round(done / total * 100) : 0;
+    return el('div', { class: 'status' },
+      el('span', { class: 'count', text: `${done} de ${total}` }),
+      el('div', { class: 'meter', role: 'progressbar', 'aria-valuenow': pctv, 'aria-valuemin': 0, 'aria-valuemax': 100 }, (() => { const i = el('i'); i.style.width = pctv + '%'; return i; })()),
+      el('span', { class: 'pill ' + (done === total && total ? 'ok' : 'warn'), text: done === total && total ? 'Lista' : `Faltan ${total - done}` }),
+      S.canWrite ? null : el('span', { class: 'pill warn', text: 'Solo lectura' }));
+  }
+
+  function toolsBar() {
+    const s = el('input', { type: 'search', id: 'buscar', placeholder: 'Buscar insumo', 'aria-label': 'Buscar insumo' }); s.value = S.q;
+    s.addEventListener('input', () => { S.q = s.value; const pos = s.selectionStart; render(); const n = $('#buscar'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
+    const cb = el('input', { type: 'checkbox', id: 'solo-pend' }); cb.checked = S.soloPend;
+    cb.addEventListener('change', () => { S.soloPend = cb.checked; render(); });
+    return el('div', { class: 'tools' }, s, el('label', { for: 'solo-pend' }, cb, 'Solo pendientes'));
+  }
+
+  function prodRows(d) { const p = S.plan.produccion; if (!p) return [];
+    return p.items.filter(i => i.reparto && i.reparto[d] != null).map(i => ({ ...i, q: i.reparto[d] })); }
+
+  function renderProd(d) {
+    main.append(el('section', { class: 'group' }, el('h2', { text: 'Producción' }),
+      el('p', { class: 'sub', text: `Preparaciones (PRO) que se producen el ${fmtF(S.fecha)}. Se produce de martes a viernes para llegar con la cocina abastecida al fin de semana: proteínas una vez por semana, salsas y bases día por medio.` })));
+    if (lunes(d)) return;
+    const rows = prodRows(d);
+    if (!rows.length) main.append(el('div', { class: 'notice', text: `${d}: no hay producción programada. Revisa que los stocks de cada estación estén completos y anota lo que falte para el martes.` }));
+    else {
+      const done = rows.filter(r => isOk('produccion', r.cod)).length;
+      const hrs = rows.reduce((a, r) => a + (Number(r.horas) || 0) / (r.frecuencia === 'Día por medio' ? 2 : 1), 0);
+      main.append(statusBar(done, rows.length));
+      main.append(credBar('produccion'));
+      main.append(el('p', { class: 'sub', text: `Carga estimada del día: ${hrs.toLocaleString('es-CL', { maximumFractionDigits: 1 })} horas de trabajo, según los tiempos del cronograma de producción.` }));
+      ['Proteínas', 'Salsas', 'Producción y Armado'].forEach(cat => {
+        const g = rows.filter(r => r.categoria === cat); if (!g.length) return;
+        main.append(el('section', { class: 'group' }, el('h3', { text: `${cat} · ${g.length}` }),
+          el('div', { class: 'list' }, g.map(r => itemRow('produccion', r.cod, r.art, r.q, r.un,
+            `${r.frecuencia}${r.horas ? ' · ' + String(r.horas).replace('.', ',') + ' h' : ''} · va a ${r.estacion}`)))));
+      });
+    }
+    // programa semanal completo
+    const all = (S.plan.produccion || {}).items || [];
+    const cols = ['Martes', 'Miércoles', 'Jueves', 'Viernes'];
+    const tb = el('tbody');
+    all.forEach(i => tb.append(el('tr', null, el('td', { text: i.art }), el('td', { text: qty(i.semanal, i.un) + ' ' + (UN[i.un] || i.un) }),
+      cols.map(c => el('td', { class: c === d ? 'today' : '', text: i.reparto[c] != null ? qty(i.reparto[c], i.un) : '' })))));
+    const tot = cols.map(c => all.filter(i => i.reparto[c] != null).reduce((a, i) => a + (Number(i.horas) || 0) / (i.frecuencia === 'Día por medio' ? 2 : 1), 0));
+    main.append(el('section', { class: 'group' }, el('h3', { text: 'Programa semanal' }),
+      el('div', { class: 'week' }, el('table', null,
+        el('thead', null, el('tr', null, el('th', { text: 'Preparación' }), el('th', { text: 'Semana' }), cols.map(c => el('th', { class: c === d ? 'today' : '', text: c.slice(0, 3) })))),
+        tb,
+        el('tfoot', null, el('tr', null, el('td', { text: 'Horas estimadas' }), el('td'), tot.map((h, k) => el('td', { class: cols[k] === d ? 'today' : '', text: h.toLocaleString('es-CL', { maximumFractionDigits: 1 }) }))))))));
+    main.append(foot());
+  }
+
+  function renderAdmin(d) {
+    main.append(el('section', { class: 'group' }, el('h2', { text: 'Resumen del día' }),
+      el('p', { class: 'sub', text: `Avance de cada estación para el ${fmtF(S.fecha)}. Se actualiza solo a medida que el equipo marca sus listas.` })));
+    if (lunes(d)) return;
+    const cards = el('div', { class: 'cards' });
+    const all = [...Object.keys(EST), 'produccion'];
+    all.forEach(est => {
+      const rows = est === 'produccion' ? prodRows(d) : stationRows(est, d);
+      const done = rows.filter(r => isOk(est, r.cod));
+      const pend = rows.filter(r => !isOk(est, r.cod));
+      const marks = Object.values(((S.checks[docId(S.fecha, est)] || {}).items) || {}).filter(m => m.ok && m.at).sort((a, b) => b.at.localeCompare(a.at));
+      const last = marks[0];
+      const pctv = rows.length ? Math.round(done.length / rows.length * 100) : 0;
+      const meter = el('div', { class: 'meter' }); const bar = el('i'); bar.style.width = pctv + '%'; meter.append(bar);
+      const c = el('article', { class: 'card' },
+        el('header', null, el('h4', { text: est === 'produccion' ? 'Producción' : EST[est] }), el('a', { href: '#' + est, text: 'Abrir' })),
+        rows.length ? el('div', { class: 'status' }, el('span', { class: 'count', text: `${done.length}/${rows.length}` }), meter,
+          el('span', { class: 'pill ' + (pend.length ? 'warn' : 'ok'), text: pend.length ? `Faltan ${pend.length}` : 'Lista' }))
+          : el('p', { class: 'who', text: 'Sin producción programada este día.' }),
+        last ? el('p', { class: 'who', text: `Último check: ${last.by || 'alguien'}, ${new Date(last.at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}` })
+          : rows.length ? el('p', { class: 'who', text: 'Nadie ha marcado todavía.' }) : null,
+        rows.length ? checkList(est, rows) : null);
+      cards.append(c);
+    });
+    const cb = el('input', { type: 'checkbox', id: 'solo-pend' }); cb.checked = S.soloPend;
+    cb.addEventListener('change', () => { S.soloPend = cb.checked; render(); });
+    main.append(el('div', { class: 'tools' }, el('label', { for: 'solo-pend' }, cb, 'Ver solo pendientes')));
+    main.append(cards);
+    main.append(foot());
+  }
+
+  // lista de solo lectura para admin: cada ítem con su ✓ tal como lo dejó la estación, en el mismo orden que la ve el equipo
+  function checkList(est, rows) {
+    const marks = ((S.checks[docId(S.fecha, est)] || {}).items) || {};
+    const orden = { PRO: 0, INS: 1 };
+    const vis = rows.filter(r => !S.soloPend || !isOk(est, r.cod))
+      .sort((a, b) => (orden[a.tipo] ?? 0) - (orden[b.tipo] ?? 0) || a.art.localeCompare(b.art, 'es'));
+    if (!vis.length) return el('p', { class: 'who', text: 'Todo marcado.' });
+    return el('ul', { class: 'chk', 'aria-label': 'Checklist de la estación' }, vis.map(r => {
+      const m = marks[r.cod], ok = !!(m && m.ok);
+      const who = ok && m.at ? `${m.by || ''} ${new Date(m.at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`.trim() : '';
+      return el('li', { class: ok ? 'done' : '' },
+        el('span', { class: 'tick', 'aria-label': ok ? 'Marcado' : 'Pendiente', text: ok ? '✓' : '' }),
+        el('span', { class: 'name' }, el('span', { text: r.art }), who ? el('span', { class: 'meta', text: who }) : null),
+        el('span', { class: 'q', text: qty(r.q, r.un) + ' ' + (UN[r.un] || r.un) }));
+    }));
+  }
+
+  function foot() {
+    const m = S.meta;
+    return el('p', { class: 'foot', text: (m && m.nota ? m.nota + ' ' : '') + 'Los lunes no se trabaja. Si una cantidad no calza con la realidad, avísale al administrador para ajustarla.' });
+  }
+
+  boot();
+})();
+
+</script>
+</body>
+</html>
