@@ -475,6 +475,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     if (esHoy) det.open = true;
     return el('article', { class: 'ped' + (esHoy ? ' hoy' : '') },
       el('header', null, el('h4', { text: x.nombre }), el('span', { class: 'cubre', text: 'Cubre ' + x.cubre.map(c => c.slice(0, 3).toLowerCase()).join(', ') })),
+      x.nota ? el('p', { class: 'pill warn', style: 'border-radius:8px;padding:8px 10px;font-weight:500;line-height:1.4', text: x.nota }) : null,
       el('div', { class: 'acts' }, copiar), det);
   }
 
