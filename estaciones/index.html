@@ -120,7 +120,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 .btn.pri { background: var(--navy-deep); border-color: var(--navy-deep); color: #F5F0E6; }
 .dlg .err { color: var(--warn); font-size: .85rem; margin: 0; min-height: 1.2em; }
 .cred { font-size: .82rem; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.cred button { font: inherit; color: var(--navy); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.cred input { font: inherit; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); width: 14rem; max-width: 100%; }
 </style>
 </head>
 <body>
@@ -156,15 +156,6 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 </main>
 <div class="toast" id="toast" hidden></div>
 
-<dialog class="dlg" id="dlg" aria-labelledby="dlg-t">
-  <form id="dlg-form" method="dialog">
-    <h3 id="dlg-t">PIN · <span id="dlg-est"></span></h3>
-    <label>Tu nombre<input id="dlg-nombre" autocomplete="name" maxlength="40"></label>
-    <label>PIN de la estación<input id="dlg-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"></label>
-    <p class="err" id="dlg-err" role="alert"></p>
-    <div class="acts"><button type="button" class="btn" id="dlg-cancel">Cancelar</button><button class="btn pri">Entrar</button></div>
-  </form>
-</dialog>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 (function () {
@@ -210,7 +201,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   function diaNom() { $('#dianom').textContent = dia(S.fecha); }
   diaNom();
 
-  // ---- datos: plan fijo en plan.json; checks en Supabase (leer libre, escribir con PIN vía marcar())
+  // ---- datos: plan fijo en plan.json; checks en Supabase (leer y escribir abierto vía marcar())
   const SUPA_URL = 'https://rrsmeduifzgalmxbaacj.supabase.co', SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyc21lZHVpZnpnYWxteGJhYWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxNzMzNDMsImV4cCI6MjEwODc0OTM0M30.y__Xoz9-M-yUH1WNwoc7Z64-HOYqE2myjFDGYj1qwzc';
   async function boot() {
     readHash();
@@ -235,45 +226,26 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   }
   function subChecks() { S.checks = {}; loadChecks(); }
 
-  // ---- PIN por estación (el PIN de admin sirve en todas). Se recuerda en este equipo.
-  const credKey = est => 'autoclub_cred_' + est;
-  function getCred(est) { try { return JSON.parse(localStorage.getItem(credKey(est)) || 'null') || JSON.parse(localStorage.getItem(credKey('admin')) || 'null'); } catch (e) { return null; } }
-  function setCred(est, c) { try { c ? localStorage.setItem(credKey(est), JSON.stringify(c)) : localStorage.removeItem(credKey(est)); } catch (e) { S.mem = c; } }
-  function pedirPin(est, luego) {
-    const dlg = $('#dlg'), f = $('#dlg-form'), err = $('#dlg-err');
-    $('#dlg-est').textContent = VISTAS[est] ? VISTAS[est][0] : est;
-    err.textContent = ''; $('#dlg-pin').value = '';
-    const prev = getCred(est); $('#dlg-nombre').value = prev ? prev.nombre : '';
-    f.onsubmit = async ev => {
-      ev.preventDefault();
-      const nombre = $('#dlg-nombre').value.trim(), pin = $('#dlg-pin').value.trim();
-      if (!nombre) { err.textContent = 'Escribe tu nombre.'; return; }
-      const { data, error } = await S.db.rpc('pin_ok', { p_estacion: est, p_pin: pin });
-      if (error) { err.textContent = 'No se pudo validar. Revisa la conexión.'; return; }
-      if (!data) { err.textContent = 'PIN incorrecto.'; return; }
-      setCred(est, { nombre, pin }); dlg.close(); render(); if (luego) luego();
-    };
-    $('#dlg-cancel').onclick = () => dlg.close();
-    dlg.showModal(); $('#dlg-nombre').value ? $('#dlg-pin').focus() : $('#dlg-nombre').focus();
-  }
-  function credBar(est) {
-    const c = getCred(est);
-    const b = el('button', { type: 'button', text: c ? 'cambiar' : 'ingresar PIN' }); b.addEventListener('click', () => pedirPin(est));
-    return el('p', { class: 'cred' }, c ? `Marcando como ${c.nombre}` : 'Para marcar necesitas el PIN de la estación.', b);
+  // ---- acceso abierto (Pablo, 28-oct): sin PIN; el nombre es opcional y se recuerda en este equipo
+  function getNombre() { try { return localStorage.getItem('autoclub_nombre') || ''; } catch (e) { return S.nombreMem || ''; } }
+  function setNombre(n) { S.nombreMem = n; try { localStorage.setItem('autoclub_nombre', n); } catch (e) {} }
+  function credBar() {
+    const i = el('input', { type: 'text', id: 'quien', placeholder: 'Tu nombre (opcional)', maxlength: '40', autocomplete: 'name', 'aria-label': 'Tu nombre' });
+    i.value = getNombre();
+    i.addEventListener('change', () => { setNombre(i.value.trim()); toast(i.value.trim() ? `Tus checks quedan a nombre de ${i.value.trim()}.` : 'Tus checks quedan sin nombre.'); });
+    return el('label', { class: 'cred', for: 'quien' }, 'Marca:', i);
   }
   const writing = {};
   async function toggle(est, cod, ok) {
     if (!S.db) return;
-    const cred = getCred(est);
-    if (!cred) { render(); pedirPin(est, () => toggle(est, cod, ok)); return; }
-    put({ fecha: S.fecha, estacion: est, cod, ok, nombre: cred.nombre, at: new Date().toISOString() }); render();
+    const nombre = getNombre();
+    put({ fecha: S.fecha, estacion: est, cod, ok, nombre, at: new Date().toISOString() }); render();
     const k = est + '/' + cod, f = S.fecha;
     while (writing[k]) await writing[k];
     const p = (async () => {
-      const { error } = await S.db.rpc('marcar', { p_fecha: f, p_estacion: est, p_cod: cod, p_ok: ok, p_pin: cred.pin, p_nombre: cred.nombre });
+      const { error } = await S.db.rpc('marcar', { p_fecha: f, p_estacion: est, p_cod: cod, p_ok: ok, p_pin: '', p_nombre: nombre });
       if (error) {
-        if (/pin/i.test(error.message || '')) { setCred(est, null); toast('El PIN cambió o no es válido. Vuelve a ingresarlo.'); }
-        else toast('No se guardó el check. Revisa la conexión y vuelve a marcarlo.');
+        toast('No se guardó el check. Revisa la conexión y vuelve a marcarlo.');
         loadChecks();
       }
     })();
@@ -314,7 +286,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     const rows = stationRows(est, d);
     const done = rows.filter(r => isOk(est, r.cod)).length;
     main.append(statusBar(done, rows.length));
-    main.append(credBar(est));
+    main.append(credBar());
     main.append(toolsBar());
     const q = S.q.toLowerCase();
     const vis = rows.filter(r => (!q || r.art.toLowerCase().includes(q)) && (!S.soloPend || !isOk(est, r.cod)));
@@ -371,7 +343,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
       const done = rows.filter(r => isOk('produccion', r.cod)).length;
       const hrs = rows.reduce((a, r) => a + (Number(r.horas) || 0) / Object.keys(r.reparto).length, 0);
       main.append(statusBar(done, rows.length));
-      main.append(credBar('produccion'));
+      main.append(credBar());
       main.append(el('p', { class: 'sub', text: `Carga estimada del día: ${hrs.toLocaleString('es-CL', { maximumFractionDigits: 1 })} horas de trabajo, según los tiempos del cronograma de producción.` }));
       [['Proteínas', 'Proteínas'], ['Producción y Armado', 'Empanaditas']].forEach(([cat, lab]) => {
         const g = rows.filter(r => r.categoria === cat); if (!g.length) return;
@@ -481,15 +453,12 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 
   function renderSelector() {
     main.append(el('section', { class: 'group' }, el('h2', { text: '¿Dónde trabajas hoy?' }),
-      el('p', { class: 'sub', text: 'Elige tu estación. Se pide tu nombre y el PIN una sola vez; después este equipo entra directo.' })));
+      el('p', { class: 'sub', text: 'Elige tu estación. Este equipo la recuerda y la próxima vez entra directo.' })));
     const g = el('div', { class: 'selector' });
     Object.entries(VISTAS).forEach(([v, [nom, desc]]) => {
       const b = el('button', { type: 'button' }, el('b', { text: nom }), el('span', { text: desc }));
       const entrar = () => { setModo(v); location.hash = v; readHash(); };
-      b.addEventListener('click', () => {
-        const c = v === 'admin' ? (() => { try { return JSON.parse(localStorage.getItem(credKey('admin')) || 'null'); } catch (e) { return null; } })() : getCred(v);
-        if (c) entrar(); else if (S.db) pedirPin(v, entrar); else toast('Sin conexión a la base de checks. Recarga la página.');
-      });
+      b.addEventListener('click', entrar);
       g.append(b);
     });
     main.append(g);
