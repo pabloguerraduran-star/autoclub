@@ -32,6 +32,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .date button, .date input { font: inherit; color: var(--band-fg); background: transparent; border: 1px solid color-mix(in srgb, var(--band-fg) 35%, transparent); border-radius: 8px; padding: 6px 10px; min-height: 36px; }
 .date button { cursor: pointer; min-width: 36px; }
 .date input { color-scheme: dark; }
+.dianom { font-family: var(--display); font-weight: 600; font-size: 1.15rem; margin-right: 4px; text-transform: capitalize; }
 .tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs a { color: var(--band-fg); opacity: .72; text-decoration: none; padding: 10px 12px 12px; white-space: nowrap; border-bottom: 3px solid transparent; font-weight: 500; }
@@ -109,6 +110,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   <div class="top">
     <h1 class="brand">Autoclub <small>Stocks y producción</small></h1>
     <div class="date">
+      <span class="dianom" id="dianom" aria-live="polite"></span>
       <button id="prev" aria-label="Día anterior">‹</button>
       <input id="fecha" type="date" aria-label="Fecha">
       <button id="next" aria-label="Día siguiente">›</button>
@@ -168,7 +170,9 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   $('#prev').addEventListener('click', () => setFecha(shift(S.fecha, -1)));
   $('#next').addEventListener('click', () => setFecha(shift(S.fecha, 1)));
   $('#hoy').addEventListener('click', () => setFecha(hoyISO()));
-  function setFecha(f) { S.fecha = f; $('#fecha').value = f; subChecks(); render(); }
+  function setFecha(f) { S.fecha = f; $('#fecha').value = f; diaNom(); subChecks(); render(); }
+  function diaNom() { $('#dianom').textContent = dia(S.fecha); }
+  diaNom();
 
   // ---- datos: plan fijo en plan.json; checks en Supabase (leer libre, escribir con PIN vía marcar())
   const SUPA_URL = 'https://rrsmeduifzgalmxbaacj.supabase.co', SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyc21lZHVpZnpnYWxteGJhYWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxNzMzNDMsImV4cCI6MjEwODc0OTM0M30.y__Xoz9-M-yUH1WNwoc7Z64-HOYqE2myjFDGYj1qwzc';
@@ -255,6 +259,11 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   function lunes(d) { if (d !== 'Lunes') return false;
     main.append(el('div', { class: 'notice', text: 'Lunes: el local está cerrado y no hay personal. No hay stocks ni producción para revisar. Usa ‹ › para ir a otro día.' })); return true; }
 
+  // orden y nombre de los grupos de cada estación (grupo viene en plan.json; producción no lo trae)
+  const GRUPOS = [['prep', 'Las preparas tú'], ['prod', 'Vienen de producción'], ['Bebidas y aguas', 'Bebidas y aguas'], ['Cervezas', 'Cervezas'],
+    ['Vinos y espumantes', 'Vinos y espumantes'], ['Destilados', 'Destilados'], ['Licores y aperitivos', 'Licores y aperitivos'],
+    ['Insumos de coctelería y café', 'Insumos de coctelería y café'], ['ins', 'Insumos']];
+  const grupoDe = r => r.grupo || (r.tipo === 'PRO' ? 'prep' : 'ins');
   function stationRows(est, d) { const p = S.plan[est]; if (!p) return [];
     return p.items.map(i => ({ ...i, q: i.stock[d] })).filter(i => i.q != null && Number(i.q) > 0); }
 
@@ -270,9 +279,8 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     main.append(toolsBar());
     const q = S.q.toLowerCase();
     const vis = rows.filter(r => (!q || r.art.toLowerCase().includes(q)) && (!S.soloPend || !isOk(est, r.cod)));
-    const groups = [['PRO', 'Preparaciones (vienen de producción)'], ['INS', 'Insumos']];
-    groups.forEach(([t, lab]) => {
-      const g = vis.filter(r => r.tipo === t).sort((a, b) => a.art.localeCompare(b.art, 'es'));
+    GRUPOS.forEach(([t, lab]) => {
+      const g = vis.filter(r => grupoDe(r) === t).sort((a, b) => a.art.localeCompare(b.art, 'es'));
       if (!g.length) return;
       main.append(el('section', { class: 'group' }, el('h3', { text: `${lab} · ${g.length}` }),
         el('div', { class: 'list' }, g.map(r => itemRow(est, r.cod, r.art, r.q, r.un, null)))));
@@ -316,19 +324,19 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 
   function renderProd(d) {
     main.append(el('section', { class: 'group' }, el('h2', { text: 'Producción' }),
-      el('p', { class: 'sub', text: `Preparaciones (PRO) que se producen el ${fmtF(S.fecha)}. Se produce de martes a viernes para llegar con la cocina abastecida al fin de semana: proteínas una vez por semana, salsas y bases día por medio.` })));
+      el('p', { class: 'sub', text: `Preparaciones (PRO) que se producen el ${fmtF(S.fecha)}. Se produce de martes a viernes para llegar con la cocina abastecida al fin de semana: proteínas una vez por semana y empanaditas de a dos variedades por día. Las salsas y bases las prepara cada estación.` })));
     if (lunes(d)) return;
     const rows = prodRows(d);
     if (!rows.length) main.append(el('div', { class: 'notice', text: `${d}: no hay producción programada. Revisa que los stocks de cada estación estén completos y anota lo que falte para el martes.` }));
     else {
       const done = rows.filter(r => isOk('produccion', r.cod)).length;
-      const hrs = rows.reduce((a, r) => a + (Number(r.horas) || 0) / (r.frecuencia === 'Día por medio' ? 2 : 1), 0);
+      const hrs = rows.reduce((a, r) => a + (Number(r.horas) || 0) / Object.keys(r.reparto).length, 0);
       main.append(statusBar(done, rows.length));
       main.append(credBar('produccion'));
       main.append(el('p', { class: 'sub', text: `Carga estimada del día: ${hrs.toLocaleString('es-CL', { maximumFractionDigits: 1 })} horas de trabajo, según los tiempos del cronograma de producción.` }));
-      ['Proteínas', 'Salsas', 'Producción y Armado'].forEach(cat => {
+      [['Proteínas', 'Proteínas'], ['Producción y Armado', 'Empanaditas']].forEach(([cat, lab]) => {
         const g = rows.filter(r => r.categoria === cat); if (!g.length) return;
-        main.append(el('section', { class: 'group' }, el('h3', { text: `${cat} · ${g.length}` }),
+        main.append(el('section', { class: 'group' }, el('h3', { text: `${lab} · ${g.length}` }),
           el('div', { class: 'list' }, g.map(r => itemRow('produccion', r.cod, r.art, r.q, r.un,
             `${r.frecuencia}${r.horas ? ' · ' + String(r.horas).replace('.', ',') + ' h' : ''} · va a ${r.estacion}`)))));
       });
@@ -339,7 +347,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     const tb = el('tbody');
     all.forEach(i => tb.append(el('tr', null, el('td', { text: i.art }), el('td', { text: qty(i.semanal, i.un) + ' ' + (UN[i.un] || i.un) }),
       cols.map(c => el('td', { class: c === d ? 'today' : '', text: i.reparto[c] != null ? qty(i.reparto[c], i.un) : '' })))));
-    const tot = cols.map(c => all.filter(i => i.reparto[c] != null).reduce((a, i) => a + (Number(i.horas) || 0) / (i.frecuencia === 'Día por medio' ? 2 : 1), 0));
+    const tot = cols.map(c => all.filter(i => i.reparto[c] != null).reduce((a, i) => a + (Number(i.horas) || 0) / Object.keys(i.reparto).length, 0));
     main.append(el('section', { class: 'group' }, el('h3', { text: 'Programa semanal' }),
       el('div', { class: 'week' }, el('table', null,
         el('thead', null, el('tr', null, el('th', { text: 'Preparación' }), el('th', { text: 'Semana' }), cols.map(c => el('th', { class: c === d ? 'today' : '', text: c.slice(0, 3) })))),
@@ -382,9 +390,9 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   // lista de solo lectura para admin: cada ítem con su ✓ tal como lo dejó la estación, en el mismo orden que la ve el equipo
   function checkList(est, rows) {
     const marks = ((S.checks[docId(S.fecha, est)] || {}).items) || {};
-    const orden = { PRO: 0, INS: 1 };
+    const orden = Object.fromEntries(GRUPOS.map(([t], k) => [t, k]));
     const vis = rows.filter(r => !S.soloPend || !isOk(est, r.cod))
-      .sort((a, b) => (orden[a.tipo] ?? 0) - (orden[b.tipo] ?? 0) || a.art.localeCompare(b.art, 'es'));
+      .sort((a, b) => (orden[grupoDe(a)] ?? 99) - (orden[grupoDe(b)] ?? 99) || a.art.localeCompare(b.art, 'es'));
     if (!vis.length) return el('p', { class: 'who', text: 'Todo marcado.' });
     return el('ul', { class: 'chk', 'aria-label': 'Checklist de la estación' }, vis.map(r => {
       const m = marks[r.cod], ok = !!(m && m.ok);
