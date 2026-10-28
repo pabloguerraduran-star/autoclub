@@ -174,6 +174,10 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   function dia(f) { return DIAS[new Date(f + 'T12:00:00').getDay()]; }
   function fmtF(f) { return dia(f).toLowerCase(); }  // la vista trabaja por día de la semana; la fecha solo ordena los checks
   function shift(f, n) { const d = new Date(f + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+  // menos de 1 kg se muestra en gramos (Pablo, 28-oct)
+  const enG = (v, un) => un === 'kg' && Number(v) > 0 && Number(v) < 1;
+  function cant(v, un) { return enG(v, un) ? [Math.round(Number(v) * 1000).toLocaleString('es-CL'), 'g'] : [qty(v, un), UN[un] || un]; }
+  const cantTxt = (v, un) => cant(v, un).join(' ');
   function qty(v, un) { const n = Number(v); const s = (un === 'kg' || un === 'lt') ? n.toLocaleString('es-CL', { maximumFractionDigits: 1 }) : n.toLocaleString('es-CL'); return s; }
   function el(tag, attrs, ...kids) { const e = document.createElement(tag); if (attrs) for (const k in attrs) { if (k === 'class') e.className = attrs[k]; else if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); } kids.flat().forEach(k => k != null && e.append(k)); return e; }
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3500); }
@@ -317,7 +321,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     const who = ok && mark && mark.at ? `✓ ${mark.by || ''} ${new Date(mark.at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`.replace(/\s+/g, ' ') : null;
     const name = el('span', { class: 'name' }, el('span', { text: art }), (meta || who) ? el('span', { class: 'meta', text: [meta, who].filter(Boolean).join(' · ') }) : null);
     const row = el('label', { class: 'item' + (ok ? ' done' : ''), for: cb.id }, cb, name,
-      el('span', { class: 'qty' }, qty(q, un), el('small', { text: UN[un] || un })));
+      el('span', { class: 'qty' }, cant(q, un)[0], el('small', { text: cant(q, un)[1] })));
     return row;
   }
 
@@ -364,8 +368,8 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     const all = (S.plan.produccion || {}).items || [];
     const cols = ['Martes', 'Miércoles', 'Jueves', 'Viernes'];
     const tb = el('tbody');
-    all.forEach(i => tb.append(el('tr', null, el('td', { text: i.art }), el('td', { text: qty(i.semanal, i.un) + ' ' + (UN[i.un] || i.un) }),
-      cols.map(c => el('td', { class: c === d ? 'today' : '', text: i.reparto[c] != null ? qty(i.reparto[c], i.un) : '' })))));
+    all.forEach(i => tb.append(el('tr', null, el('td', { text: i.art }), el('td', { text: cantTxt(i.semanal, i.un) }),
+      cols.map(c => el('td', { class: c === d ? 'today' : '', text: i.reparto[c] != null ? (enG(i.reparto[c], i.un) ? cantTxt(i.reparto[c], i.un) : qty(i.reparto[c], i.un)) : '' })))));
     const tot = cols.map(c => all.filter(i => i.reparto[c] != null).reduce((a, i) => a + (Number(i.horas) || 0) / Object.keys(i.reparto).length, 0));
     main.append(el('section', { class: 'group' }, el('h3', { text: 'Programa semanal' }),
       el('div', { class: 'week' }, el('table', null,
@@ -419,7 +423,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
       return el('li', { class: ok ? 'done' : '' },
         el('span', { class: 'tick', 'aria-label': ok ? 'Marcado' : 'Pendiente', text: ok ? '✓' : '' }),
         el('span', { class: 'name' }, el('span', { text: r.art }), who ? el('span', { class: 'meta', text: who }) : null),
-        el('span', { class: 'q', text: qty(r.q, r.un) + ' ' + (UN[r.un] || r.un) }));
+        el('span', { class: 'q', text: cantTxt(r.q, r.un) }));
     }));
   }
 
@@ -449,14 +453,15 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     const tb = el('tbody'); let fam = null;
     x.items.forEach(i => {
       if (x.nombre === 'Barra' && i.grupo !== fam) { fam = i.grupo; tb.append(el('tr', null, el('td', { class: 'fam', colspan: 3, text: fam }))); }
-      const inp = el('input', { type: 'number', min: '0', step: (i.un === 'kg' || i.un === 'lt') ? '0.1' : '1', inputmode: 'decimal', class: 'alt', 'aria-label': 'Pedir ' + i.art, placeholder: qty(i.cant, i.un) });
+      const g = enG(i.cant, i.un);
+      const inp = el('input', { type: 'number', min: '0', step: g ? '50' : (i.un === 'kg' || i.un === 'lt') ? '0.1' : '1', inputmode: 'decimal', class: 'alt', 'aria-label': `Pedir ${i.art} (${g ? 'g' : (UN[i.un] || i.un)})`, placeholder: cant(i.cant, i.un)[0] });
       inp.value = getAlt(x, i);
       inp.addEventListener('input', () => setAlt(x, i, inp.value.trim()));
-      tb.append(el('tr', null, el('td', { text: i.art }), el('td', { class: 'sug', text: qty(i.cant, i.un) + ' ' + (UN[i.un] || i.un) }), el('td', null, inp)));
+      tb.append(el('tr', null, el('td', { text: i.art }), el('td', { class: 'sug', text: cantTxt(i.cant, i.un) }), el('td', null, inp)));
     });
     const texto = () => `Pedido ${x.nombre} · llega ${x.dia.toLowerCase()}\n` + x.items.map(i => {
-      const a = getAlt(x, i); const n = a !== '' ? Number(a) : i.cant;
-      return n > 0 ? `- ${i.art}: ${qty(n, i.un)} ${UN[i.un] || i.un}` : null; }).filter(Boolean).join('\n');
+      const a = getAlt(x, i); const n = a !== '' ? Number(a) / (enG(i.cant, i.un) ? 1000 : 1) : i.cant;
+      return n > 0 ? `- ${i.art}: ${cantTxt(n, i.un)}` : null; }).filter(Boolean).join('\n');
     const copiar = el('button', { type: 'button', class: 'btn pri', text: 'Copiar lista' });
     copiar.addEventListener('click', async () => { try { await navigator.clipboard.writeText(texto()); toast('Lista copiada con tus cantidades. Pégala en WhatsApp o en el correo al proveedor.'); } catch (e) { toast('No se pudo copiar en este navegador.'); } });
     const limpiar = el('button', { type: 'button', class: 'btn', text: 'Volver al sugerido' });
