@@ -35,20 +35,22 @@ window.acceso = (() => {
     return new Promise(resolve => {
       const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
       const d = document.createElement('div'); d.id = 'acc';
-      d.innerHTML = `<form autocomplete="on">
+      d.innerHTML = `<form autocomplete="on" method="post" action="#">
         <h1>Autoclub</h1><p>Plataforma interna. Ingresa con el usuario y clave del equipo.</p>
-        <label>Usuario<input name="u" autocomplete="username" autocapitalize="none" required></label>
-        <label>Clave<input name="c" type="password" autocomplete="current-password" required></label>
+        <label>Usuario<input name="username" id="acc-u" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
+        <label>Clave<input name="password" id="acc-c" type="password" autocomplete="current-password" required></label>
         <button>Entrar</button><div class="err" role="alert"></div></form>`;
       document.body.appendChild(d);
       const f = d.querySelector('form'), err = d.querySelector('.err'), btn = d.querySelector('button');
-      f.u.focus();
+      if (!f.username.value) f.username.focus();
       f.onsubmit = async ev => {
         ev.preventDefault(); err.textContent = ''; btn.disabled = true;
-        const u = f.u.value.trim().toLowerCase();
-        const { error } = await db.auth.signInWithPassword({ email: u.includes('@') ? u : u + '@autoclub.local', password: f.c.value });
+        const u = f.username.value.trim().toLowerCase();
+        const { error } = await db.auth.signInWithPassword({ email: u.includes('@') ? u : u + '@autoclub.local', password: f.password.value });
         btn.disabled = false;
         if (error) { err.textContent = 'Usuario o clave incorrectos.'; return; }
+        // Que el navegador ofrezca guardar la clave (Chrome/Android; Safari y el llavero de iPhone lo detectan solos al enviar)
+        try { if (window.PasswordCredential) await navigator.credentials.store(new PasswordCredential({ id: u, password: f.password.value, name: 'Autoclub' })); } catch (e) {}
         d.remove(); resolve();
       };
     });
