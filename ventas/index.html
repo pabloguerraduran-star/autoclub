@@ -461,6 +461,6 @@ window.dash = (() => {
 })();
 </script>
 </div>
-<script>dash.load(["semanas", "venta_por_dia", "venta_por_rubro", "productos", "productos_dia"]);</script>
+<script>acceso.soloAdmin().then(() => dash.load(["semanas", "venta_por_dia", "venta_por_rubro", "productos", "productos_dia"]));</script>
 </body>
 </html>

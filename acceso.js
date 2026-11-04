@@ -36,7 +36,7 @@ window.acceso = (() => {
       const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
       const d = document.createElement('div'); d.id = 'acc';
       d.innerHTML = `<form autocomplete="on" method="post" action="#">
-        <h1>Autoclub</h1><p>Plataforma interna. Ingresa con el usuario y clave del equipo.</p>
+        <h1>Autoclub</h1><p>Plataforma interna. Ingresa con tu usuario y clave.</p>
         <label>Usuario<input name="username" id="acc-u" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
         <label>Clave<input name="password" id="acc-c" type="password" autocomplete="current-password" required></label>
         <button>Entrar</button><div class="err" role="alert"></div></form>`;
@@ -74,5 +74,23 @@ window.acceso = (() => {
     return data.text();
   }
 
-  return { cliente, archivo };
+  // 4-nov-2026: `equipo` ve cocina; `administracion` ve todo. El bloqueo real está en Supabase (sql/acceso_dos_usuarios.sql).
+  async function esAdmin() {
+    const c = await cliente();
+    const { data } = await c.auth.getSession();
+    return ((data.session && data.session.user.email) || '') === 'administracion@autoclub.local';
+  }
+
+  async function soloAdmin() {
+    if (await esAdmin()) return;
+    const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+    const d = document.createElement('div'); d.id = 'acc';
+    d.innerHTML = `<form><h1>Autoclub</h1><p>Esta sección es de administración. Tu usuario no tiene acceso.</p>
+      <a href="../" style="color:inherit">Volver al inicio</a><button type="button">Entrar con otro usuario</button></form>`;
+    d.querySelector('button').onclick = async () => { await db.auth.signOut(); location.reload(); };
+    document.body.appendChild(d);
+    return new Promise(() => {});  // la página no sigue cargando
+  }
+
+  return { cliente, archivo, esAdmin, soloAdmin };
 })();

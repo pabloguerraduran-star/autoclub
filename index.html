@@ -2,8 +2,8 @@
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>Autoclub</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F5F0E6;color:#1A1A78;font-family:Georgia,serif}a{color:#1A1A78;display:block;margin:.6rem 0;font-size:1.2rem}@media(prefers-color-scheme:dark){body{background:#141322;color:#ecebf5}a{color:#b4b4ff}}</style>
-</head><body><main><h1>Autoclub</h1><a href="estaciones/">Stocks y producción</a><a href="ventas/">Ventas</a><a href="recepcion/">Recepción de facturas</a></main>
+</head><body><main><h1>Autoclub</h1><a href="estaciones/">Stocks y producción</a><a href="ventas/" data-admin>Ventas</a><a href="recepcion/" data-admin>Recepción de facturas</a></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="acceso.js"></script>
-<script>document.querySelector("main").style.visibility="hidden";acceso.cliente().then(()=>document.querySelector("main").style.visibility="");</script>
+<script>document.querySelector("main").style.visibility="hidden";acceso.esAdmin().then(a=>{if(!a)document.querySelectorAll("[data-admin]").forEach(e=>e.remove());document.querySelector("main").style.visibility="";});</script>
 </body></html>

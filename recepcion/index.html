@@ -147,6 +147,7 @@ $('csv').addEventListener('click', () => {
 (async () => {
   try {
     const db = await acceso.cliente();  // 2-nov-2026: solo con sesión
+    await acceso.soloAdmin();  // 4-nov-2026: cocina no ve facturas
     const { data, error } = await db.from('documentos')
       .select('id, estado, tipo, folio, proveedor_texto, fecha_doc, fecha_venc, condicion, neto, iva, otros_impuestos, total, nota, gastos_fila, gastos_categoria, proveedores(nombre), documento_lineas(n, descripcion_origen, insumo_cod, cantidad, unidad, precio_unitario, total_linea, insumos(nombre))')
       .neq('estado', 'anulado').order('fecha_doc', { ascending: false });
