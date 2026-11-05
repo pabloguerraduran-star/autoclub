@@ -118,8 +118,8 @@ function abrirGrilla(f){
   const d=$('det');d.hidden=false;
   d.innerHTML='<button class="atras">← Todas las fichas</button><h2></h2><div class="cod"></div><table class="gr"><thead><tr></tr></thead><tbody></tbody></table><h3></h3><ol></ol>';
   d.querySelector('.atras').onclick=()=>history.back();
-  d.querySelector('h2').textContent=titulo(f.name);d.querySelector('.cod').textContent=f.code+' · cantidad por unidad';
-  const tr=d.querySelector('thead tr');['Ingrediente',...f.scale_labels].forEach(t=>{const th=document.createElement('th');th.textContent=t;tr.appendChild(th)});
+  d.querySelector('h2').textContent=titulo(f.name);d.querySelector('.cod').textContent=f.code+' · '+(f.rinde||'Cantidad por unidad').toLowerCase();
+  const tr=d.querySelector('thead tr');[f.first_col_label||'Ingrediente',...f.scale_labels].forEach(t=>{const th=document.createElement('th');th.textContent=t;tr.appendChild(th)});
   const tb=d.querySelector('tbody');
   f.ingredients.forEach(([n,qs])=>{const r=document.createElement('tr'),a=document.createElement('td');a.textContent=n;r.appendChild(a);
     qs.forEach(q=>{const c=document.createElement('td');c.className='q';c.textContent=q;r.appendChild(c)});tb.appendChild(r)});
