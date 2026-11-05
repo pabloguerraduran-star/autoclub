@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>Fichas de producción · Autoclub</title>
+<title>Fichas · Autoclub</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap">
 <!-- Fuente: _datos/github_autoclub/fichas/index.html (se edita aquí). Datos: bucket privado fichas/produccion.json
-     (origen _datos/fichas/fichas_produccion.json, se sube con scripts/subir_fichas.py). -->
+     (origen _datos/fichas/fichas_produccion.json, scripts/subir_fichas.py) y fichas/platos.json (fichas de plato revisadas, scripts/subir_fichas_platos.py). -->
 <style>
 :root{--navy:#1A1A78;--navy-deep:#12124f;--cream:#F5F0E6;--panel:#FBF8F1;--ink:#1d1b2e;--muted:#6b6880;--rule:#dcd6c6;--band-fg:#F5F0E6;--sel:#e7e5f7;
 --display:'EB Garamond',Georgia,serif;--body:'Libre Franklin',system-ui,sans-serif}
@@ -17,6 +17,10 @@ body{margin:0;background:var(--cream);color:var(--ink);font:16px/1.45 var(--body
 .band a{color:var(--band-fg);opacity:.75;text-decoration:none;margin-left:auto;font-size:.9rem}
 main{max-width:820px;margin:0 auto;padding:14px 16px 64px}
 input[type=search],input[type=number]{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink)}
+.tipos{display:flex;gap:8px;margin:12px 0 0}
+.tipos button{font:inherit;font-weight:600;flex:1;padding:10px;border:1px solid var(--navy);background:var(--panel);color:var(--navy);border-radius:10px;cursor:pointer}
+.tipos button[aria-pressed=true]{background:var(--navy);color:var(--cream)}
+@media(prefers-color-scheme:dark){.tipos button[aria-pressed=true]{color:#141322}}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
 .chips button{font:inherit;font-size:.9rem;padding:6px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:999px;cursor:pointer}
 .chips button[aria-pressed=true]{background:var(--navy);color:var(--cream);border-color:var(--navy)}
@@ -45,11 +49,12 @@ ol{margin:0;padding-left:1.4rem;display:grid;gap:10px}
 #msg{color:var(--muted);padding:30px 0;text-align:center}
 @media print{.band,.esc,.otra,.atras,#acc-salir{display:none}body{background:#fff;color:#000}}
 </style></head><body>
-<div class="band"><div class="in"><h1>Fichas de producción</h1><a href="../">Inicio</a></div></div>
+<div class="band"><div class="in"><h1>Fichas</h1><a href="../">Inicio</a></div></div>
 <main>
 <div id="msg">Cargando…</div>
 <section id="lista" hidden>
-  <input type="search" id="q" placeholder="Buscar ficha (salsa, porción, pulpo…)" aria-label="Buscar ficha" autocomplete="off">
+  <div class="tipos" id="tipos" role="group" aria-label="Tipo de ficha"></div>
+  <input type="search" id="q" placeholder="Buscar ficha (salsa, porción, pulpo…)" aria-label="Buscar ficha" autocomplete="off" style="margin-top:12px">
   <div class="chips" id="chips" role="group" aria-label="Categoría"></div>
   <div id="ul"></div><div class="vacio" id="vacio" hidden>Ninguna ficha coincide.</div>
 </section>
@@ -75,18 +80,29 @@ function escalar(txt,f){
 function base(f){const m=f.scale_labels[0].match(/\d[\d.]*(?:,\d+)?/);return m?num(m[0]):1}
 function unidad(f){return f.scale_labels[0].replace(/^[^\d]*\d[\d.]*(?:,\d+)?\s*/,'')||''}
 
-const GRUPOS=['Producción','Plancha','Cuarto frío','Cuarto caliente','Sin asignar'];
-let grupo=new URLSearchParams(location.search).get('g')||'Todas';
+const GRUPOS_PROD=['Producción','Plancha','Cuarto frío','Cuarto caliente','Sin asignar'];
+const params=new URLSearchParams(location.search);
+let tipo=params.get('t')==='plato'?'plato':'prod';
+let grupo=params.get('g')||'Todas';
+const deTipo=()=>fichas.filter(f=>f.tipo===tipo);
+const gruposTipo=()=>tipo==='prod'?GRUPOS_PROD.filter(g=>deTipo().some(f=>f.grupo===g)):[...new Set(deTipo().map(f=>f.grupo))];
+function tipos(){
+  const c=$('tipos');c.innerHTML='';
+  [['prod','Producción'],['plato','Platos']].forEach(([t,n])=>{const k=fichas.filter(f=>f.tipo===t).length;if(!k)return;
+    const b=document.createElement('button');b.textContent=n+' · '+k;b.setAttribute('aria-pressed',String(t===tipo));
+    b.onclick=()=>{tipo=t;grupo='Todas';tipos();chips();lista()};c.appendChild(b)});
+  c.hidden=!fichas.some(f=>f.tipo==='plato');
+}
 function chips(){
   const c=$('chips');c.innerHTML='';
-  ['Todas',...GRUPOS.filter(g=>fichas.some(f=>f.grupo===g))].forEach(g=>{const b=document.createElement('button');
-    const n=g==='Todas'?fichas.length:fichas.filter(f=>f.grupo===g).length;b.textContent=g+' · '+n;
+  ['Todas',...gruposTipo()].forEach(g=>{const b=document.createElement('button');
+    const n=g==='Todas'?deTipo().length:deTipo().filter(f=>f.grupo===g).length;b.textContent=g+' · '+n;
     b.setAttribute('aria-pressed',String(g===grupo));b.onclick=()=>{grupo=g;chips();lista()};c.appendChild(b)});
 }
 function lista(){
   const q=norm($('q').value.trim()),box=$('ul');box.innerHTML='';
-  const r=fichas.filter(f=>(grupo==='Todas'||f.grupo===grupo)&&norm(f.name+' '+f.code).includes(q));
-  GRUPOS.forEach(g=>{const fs=r.filter(f=>f.grupo===g);if(!fs.length)return;
+  const r=deTipo().filter(f=>(grupo==='Todas'||f.grupo===grupo)&&norm(f.name+' '+f.code).includes(q));
+  gruposTipo().forEach(g=>{const fs=r.filter(f=>f.grupo===g);if(!fs.length)return;
     if(grupo==='Todas'){const h=document.createElement('h3');h.className='gr';h.textContent=g;box.appendChild(h)}
     const ul=document.createElement('ul');ul.className='lista';
     fs.forEach(f=>{const li=document.createElement('li'),b=document.createElement('button');
@@ -96,6 +112,7 @@ function lista(){
 }
 function abrir(code,push){
   const f=fichas.find(x=>x.code===code);if(!f)return volver();
+  tipo=f.tipo;
   if(push)history.pushState({code},'',location.pathname+'#'+code);
   $('lista').hidden=true;const d=$('det');d.hidden=false;
   const b0=base(f),u=unidad(f);let factor=1;
@@ -125,13 +142,14 @@ function abrir(code,push){
   const ol=d.querySelector('ol');f.steps.forEach(s=>{const li=document.createElement('li');li.textContent=s;ol.appendChild(li)});
   pinta();window.scrollTo(0,0);
 }
-function volver(){$('det').hidden=true;$('lista').hidden=false;if(location.hash||location.search)history.replaceState(null,'',location.pathname)}
+function volver(){$('det').hidden=true;$('lista').hidden=false;tipos();chips();lista();if(location.hash||location.search)history.replaceState(null,'',location.pathname)}
 window.onpopstate=()=>{const c=location.hash.slice(1);c?abrir(c,false):volver()};
 
 (async()=>{
   try{
-    fichas=JSON.parse(await acceso.archivo('fichas/produccion.json'));
-    $('msg').hidden=true;$('lista').hidden=false;if(!GRUPOS.includes(grupo))grupo='Todas';chips();lista();$('q').oninput=lista;
+    fichas=JSON.parse(await acceso.archivo('fichas/produccion.json')).map(f=>({...f,tipo:'prod'}));
+    try{fichas=fichas.concat(JSON.parse(await acceso.archivo('fichas/platos.json')).map(f=>({...f,tipo:'plato'})))}catch(e){}
+    $('msg').hidden=true;$('lista').hidden=false;if(!gruposTipo().includes(grupo))grupo='Todas';tipos();chips();lista();$('q').oninput=lista;
     if(location.hash)abrir(location.hash.slice(1),false);
   }catch(e){$('msg').textContent='No se pudieron cargar las fichas. Revisa tu conexión o vuelve a entrar.'}
 })();
