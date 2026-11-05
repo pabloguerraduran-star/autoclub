@@ -45,6 +45,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
 tr:last-child td{border-bottom:0}
 th{background:var(--navy);color:var(--cream);padding:10px 12px;text-align:center;font-weight:600}
 th:first-child{text-align:left}
+table.gr.ancha td,table.gr.ancha th{padding:8px 3px;font-size:.78rem}
 table.gr td.q{text-align:center;white-space:normal;font-weight:500}
 @media(prefers-color-scheme:dark){th{color:#141322}}
 td.q{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600}
@@ -118,6 +119,7 @@ function abrirGrilla(f){
   const d=$('det');d.hidden=false;
   d.innerHTML='<button class="atras">← Todas las fichas</button><h2></h2><div class="cod"></div><table class="gr"><thead><tr></tr></thead><tbody></tbody></table><h3></h3><ol></ol>';
   d.querySelector('.atras').onclick=()=>history.back();
+  if(f.scale_labels.length>3)d.querySelector('table').classList.add('ancha');
   d.querySelector('h2').textContent=titulo(f.name);d.querySelector('.cod').textContent=f.code+' · '+(f.rinde||'Cantidad por unidad').toLowerCase();
   const tr=d.querySelector('thead tr');[f.first_col_label||'Ingrediente',...f.scale_labels].forEach(t=>{const th=document.createElement('th');th.textContent=t;tr.appendChild(th)});
   const tb=d.querySelector('tbody');
