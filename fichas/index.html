@@ -132,7 +132,7 @@ function abrirGrilla(f){
 function abrir(code,push){
   const f=fichas.find(x=>x.code===code);if(!f)return volver();
   tipo=f.tipo;
-  if(push)history.pushState({code},'',location.pathname+'#'+code);
+  if(push)history.pushState({code},'',location.pathname+location.search+'#'+encodeURIComponent(code));
   $('lista').hidden=true;if(f.grilla)return abrirGrilla(f);const d=$('det');d.hidden=false;
   const b0=base(f),u=unidad(f);let factor=1;
   const c0=parseFloat(new URLSearchParams(location.search).get('c'));if(c0>0)factor=c0/b0;
@@ -162,14 +162,14 @@ function abrir(code,push){
   pinta();window.scrollTo(0,0);
 }
 function volver(){$('det').hidden=true;$('lista').hidden=false;tipos();chips();lista();if(location.hash||location.search)history.replaceState(null,'',location.pathname)}
-window.onpopstate=()=>{const c=location.hash.slice(1);c?abrir(c,false):volver()};
+window.onpopstate=()=>{const c=decodeURIComponent(location.hash.slice(1));c?abrir(c,false):volver()};
 
 (async()=>{
   try{
     fichas=JSON.parse(await acceso.archivo('fichas/produccion.json')).map(f=>({...f,tipo:'prod'}));
     try{fichas=fichas.concat(JSON.parse(await acceso.archivo('fichas/platos.json')).map(f=>({...f,tipo:'plato'})))}catch(e){}
     $('msg').hidden=true;$('lista').hidden=false;if(!gruposTipo().includes(grupo))grupo='Todas';tipos();chips();lista();$('q').oninput=lista;
-    if(location.hash)abrir(location.hash.slice(1),false);
+    if(location.hash)abrir(decodeURIComponent(location.hash.slice(1)),false);
   }catch(e){$('msg').textContent='No se pudieron cargar las fichas. Revisa tu conexión o vuelve a entrar.'}
 })();
 </script></body></html>
