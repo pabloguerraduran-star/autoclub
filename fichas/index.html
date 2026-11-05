@@ -43,6 +43,10 @@ h2{font:600 1.7rem/1.15 var(--display);margin:4px 0 2px;color:var(--navy)}
 table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
 td{padding:10px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
 tr:last-child td{border-bottom:0}
+th{background:var(--navy);color:var(--cream);padding:10px 12px;text-align:center;font-weight:600}
+th:first-child{text-align:left}
+table.gr td.q{text-align:center;white-space:normal;font-weight:500}
+@media(prefers-color-scheme:dark){th{color:#141322}}
 td.q{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600}
 h3{font:600 1.1rem var(--display);letter-spacing:.06em;text-transform:uppercase;margin:22px 0 8px;color:var(--navy)}
 ol{margin:0;padding-left:1.4rem;display:grid;gap:10px}
@@ -110,11 +114,24 @@ function lista(){
       b.onclick=()=>abrir(f.code,true);li.appendChild(b);ul.appendChild(li)});box.appendChild(ul)});
   $('vacio').hidden=r.length>0;
 }
+function abrirGrilla(f){
+  const d=$('det');d.hidden=false;
+  d.innerHTML='<button class="atras">← Todas las fichas</button><h2></h2><div class="cod"></div><table class="gr"><thead><tr></tr></thead><tbody></tbody></table><h3></h3><ol></ol>';
+  d.querySelector('.atras').onclick=()=>history.back();
+  d.querySelector('h2').textContent=titulo(f.name);d.querySelector('.cod').textContent=f.code+' · cantidad por unidad';
+  const tr=d.querySelector('thead tr');['Ingrediente',...f.scale_labels].forEach(t=>{const th=document.createElement('th');th.textContent=t;tr.appendChild(th)});
+  const tb=d.querySelector('tbody');
+  f.ingredients.forEach(([n,qs])=>{const r=document.createElement('tr'),a=document.createElement('td');a.textContent=n;r.appendChild(a);
+    qs.forEach(q=>{const c=document.createElement('td');c.className='q';c.textContent=q;r.appendChild(c)});tb.appendChild(r)});
+  d.querySelector('h3').textContent=f.steps_label||'Cómo armarlo';
+  const ol=d.querySelector('ol');f.steps.forEach(t=>{const li=document.createElement('li');li.textContent=t;ol.appendChild(li)});
+  window.scrollTo(0,0);
+}
 function abrir(code,push){
   const f=fichas.find(x=>x.code===code);if(!f)return volver();
   tipo=f.tipo;
   if(push)history.pushState({code},'',location.pathname+'#'+code);
-  $('lista').hidden=true;const d=$('det');d.hidden=false;
+  $('lista').hidden=true;if(f.grilla)return abrirGrilla(f);const d=$('det');d.hidden=false;
   const b0=base(f),u=unidad(f);let factor=1;
   const c0=parseFloat(new URLSearchParams(location.search).get('c'));if(c0>0)factor=c0/b0;
   d.innerHTML='<button class="atras">← Todas las fichas</button><h2></h2><div class="cod"></div><div class="esc"></div>'+
