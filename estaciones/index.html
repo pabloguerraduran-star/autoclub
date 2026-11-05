@@ -287,7 +287,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     main.append(el('div', { class: 'notice', text: 'Lunes: el local está cerrado y no hay personal. No hay stocks ni producción para revisar. Usa ‹ › para ir a otro día.' })); return true; }
 
   // orden y nombre de los grupos de cada estación (grupo viene en plan.json; producción no lo trae)
-  const GRUPOS = [['prep', 'Las preparas tú'], ['prod', 'Vienen de producción'], ['Bebidas y aguas', 'Bebidas y aguas'], ['Cervezas', 'Cervezas'],
+  const GRUPOS = [['prep', 'Las preparas tú'], ['prod', 'Vienen de producción'], ['comprado', 'Comprados (stock referencial)'], ['Bebidas y aguas', 'Bebidas y aguas'], ['Cervezas', 'Cervezas'],
     ['Vinos y espumantes', 'Vinos y espumantes'], ['Destilados', 'Destilados'], ['Licores y aperitivos', 'Licores y aperitivos'],
     ['Insumos de coctelería y café', 'Insumos de coctelería y café'], ['ins', 'Insumos']];
   const grupoDe = r => r.grupo || (r.tipo === 'PRO' ? 'prep' : 'ins');
@@ -456,7 +456,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     main.append(el('section', { class: 'group' }, el('h2', { text: S.fam }),
       el('p', { class: 'sub', text: `${lst.length === 1 ? 'Un pedido' : lst.length + ' pedidos'} por semana: ${lst.map(x => x.dia.toLowerCase()).join(', ')}. Sugerido = venta de la semana 20-25 oct + materia prima de la producción, + 20% (no descuenta bodega). Escribe en "Pedir" otra cantidad si quieres; es la que se copia.` })));
     lst.forEach(x => main.append(pedidoCard(x)));
-    main.append(el('p', { class: 'foot', text: 'Vegetales y panes: martes, jueves y sábado. Carnes y pescados frescos: martes y jueves. Congelados (camarones, ostiones, jaiba), lácteos y abarrotes: martes, para toda la semana. Barra: jueves, para toda la semana.' }));
+    main.append(el('p', { class: 'foot', text: 'Vegetales y panes: martes, jueves y sábado. Carnes y pescados frescos: martes y jueves. Congelados (camarones, ostiones, jaiba), lácteos y abarrotes: martes, para toda la semana. Barra: jueves, para toda la semana. Postres comprados (crema volteada, tiramisú): martes y viernes.' }));
   }
   function pedidoCard(x) {
     const tb = el('tbody'); let fam = null;
