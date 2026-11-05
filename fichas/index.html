@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Fichas de producción · Autoclub</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=Libre+Franklin:wght@400;500;600&display=swap">
+<!-- Fuente: _datos/github_autoclub/fichas/index.html (se edita aquí). Datos: bucket privado fichas/produccion.json
+     (origen _datos/fichas/fichas_produccion.json, se sube con scripts/subir_fichas.py). -->
+<style>
+:root{--navy:#1A1A78;--navy-deep:#12124f;--cream:#F5F0E6;--panel:#FBF8F1;--ink:#1d1b2e;--muted:#6b6880;--rule:#dcd6c6;--band-fg:#F5F0E6;--sel:#e7e5f7;
+--display:'EB Garamond',Georgia,serif;--body:'Libre Franklin',system-ui,sans-serif}
+@media(prefers-color-scheme:dark){:root{--navy:#9c9cf2;--navy-deep:#15153a;--cream:#141322;--panel:#1c1b2e;--ink:#ecebf5;--muted:#a3a1b8;--rule:#34324a;--band-fg:#ecebf5;--sel:#2a2950;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--ink);font:16px/1.45 var(--body)}
+.band{background:var(--navy-deep);color:var(--band-fg);position:sticky;top:0;z-index:5}
+.band .in{max-width:820px;margin:0 auto;padding:12px 16px;display:flex;align-items:baseline;gap:12px}
+.band h1{font:600 1.35rem var(--display);margin:0}
+.band a{color:var(--band-fg);opacity:.75;text-decoration:none;margin-left:auto;font-size:.9rem}
+main{max-width:820px;margin:0 auto;padding:14px 16px 64px}
+input[type=search],input[type=number]{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink)}
+.lista{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+.lista button{all:unset;box-sizing:border-box;width:100%;display:flex;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--panel);border:1px solid var(--rule);border-radius:10px;cursor:pointer}
+.lista button:focus-visible{outline:2px solid var(--navy)}
+.lista small{color:var(--muted);white-space:nowrap}
+.vacio{color:var(--muted);padding:18px 0}
+.atras{all:unset;cursor:pointer;color:var(--navy);margin:2px 0 8px;display:inline-block;padding:6px 0}
+h2{font:600 1.7rem/1.15 var(--display);margin:4px 0 2px;color:var(--navy)}
+.cod{color:var(--muted);font-size:.85rem}
+.esc{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 8px}
+.esc button{font:inherit;padding:8px 14px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:999px;cursor:pointer}
+.esc button[aria-pressed=true]{background:var(--navy);color:var(--cream);border-color:var(--navy)}
+@media(prefers-color-scheme:dark){.esc button[aria-pressed=true]{color:#141322}}
+.otra{display:flex;align-items:center;gap:10px;margin:6px 0 14px}
+.otra input{width:7rem}.otra span{color:var(--muted)}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+td{padding:10px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.q{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600}
+h3{font:600 1.1rem var(--display);letter-spacing:.06em;text-transform:uppercase;margin:22px 0 8px;color:var(--navy)}
+ol{margin:0;padding-left:1.4rem;display:grid;gap:10px}
+#msg{color:var(--muted);padding:30px 0;text-align:center}
+@media print{.band,.esc,.otra,.atras,#acc-salir{display:none}body{background:#fff;color:#000}}
+</style></head><body>
+<div class="band"><div class="in"><h1>Fichas de producción</h1><a href="../">Inicio</a></div></div>
+<main>
+<div id="msg">Cargando…</div>
+<section id="lista" hidden>
+  <input type="search" id="q" placeholder="Buscar ficha (salsa, porción, pulpo…)" aria-label="Buscar ficha" autocomplete="off">
+  <ul class="lista" id="ul"></ul><div class="vacio" id="vacio" hidden>Ninguna ficha coincide.</div>
+</section>
+<section id="det" hidden></section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="../acceso.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const norm=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const titulo=s=>{const t=s.toLowerCase();return t.charAt(0).toUpperCase()+t.slice(1)};
+const num=s=>parseFloat(s.replace(/\./g,'').replace(',','.'));
+const fmt=n=>{const r=Math.round(n*100)/100;return r.toLocaleString('es-CL',{maximumFractionDigits:2})};
+let fichas=[];
+
+// Multiplica cada número de la cantidad (1.250 g · 80 u). Texto sin número queda igual ("a gusto").
+function escalar(txt,f){
+  let out=txt.replace(/\d[\d.]*(?:,\d+)?/g,m=>fmt(num(m)*f));
+  const g=out.match(/^([\d.]+(?:,\d+)?) g(.*)$/);
+  if(g&&num(g[1])>=1000) out=out+' ('+fmt(num(g[1])/1000)+' kg)';
+  return out;
+}
+function base(f){const m=f.scale_labels[0].match(/\d[\d.]*(?:,\d+)?/);return m?num(m[0]):1}
+function unidad(f){return f.scale_labels[0].replace(/^[^\d]*\d[\d.]*(?:,\d+)?\s*/,'')||''}
+
+function lista(){
+  const q=norm($('q').value.trim()),ul=$('ul');ul.innerHTML='';
+  const r=fichas.filter(f=>norm(f.name+' '+f.code).includes(q));
+  r.forEach(f=>{const li=document.createElement('li'),b=document.createElement('button');
+    b.innerHTML='<span></span><small></small>';b.firstChild.textContent=titulo(f.name);b.lastChild.textContent=f.code.replace('AUTO-','');
+    b.onclick=()=>abrir(f.code,true);li.appendChild(b);ul.appendChild(li)});
+  $('vacio').hidden=r.length>0;
+}
+function abrir(code,push){
+  const f=fichas.find(x=>x.code===code);if(!f)return volver();
+  if(push)history.pushState({code},'','#'+code);
+  $('lista').hidden=true;const d=$('det');d.hidden=false;
+  const b0=base(f),u=unidad(f);let factor=1;
+  d.innerHTML='<button class="atras">← Todas las fichas</button><h2></h2><div class="cod"></div><div class="esc"></div>'+
+   '<div class="otra"><label for="can">Otra cantidad:</label><input type="number" id="can" inputmode="decimal" min="0" step="any"><span></span></div>'+
+   '<table><tbody></tbody></table><h3>Preparación</h3><ol></ol>';
+  d.querySelector('.atras').onclick=()=>history.back();
+  d.querySelector('h2').textContent=titulo(f.name);
+  d.querySelector('.cod').textContent=f.code;
+  d.querySelector('.otra span').textContent=u;
+  const esc=d.querySelector('.esc'),can=$('can'),tb=d.querySelector('tbody');
+  const pinta=()=>{
+    tb.innerHTML='';
+    f.ingredients.forEach(([n,qs])=>{const tr=document.createElement('tr'),a=document.createElement('td'),c=document.createElement('td');
+      a.textContent=n;c.className='q';c.textContent=escalar(qs[0],factor);tr.append(a,c);tb.appendChild(tr)});
+    can.value=Math.round(b0*factor*100)/100;
+    esc.querySelectorAll('button').forEach((bt,i)=>bt.setAttribute('aria-pressed',String(Math.abs(base_i[i]/b0-factor)<1e-9)));
+  };
+  const base_i=f.scale_labels.map(l=>{const m=l.match(/\d[\d.]*(?:,\d+)?/);return m?num(m[0]):1});
+  f.scale_labels.forEach((l,i)=>{const bt=document.createElement('button');bt.textContent=l;
+    bt.onclick=()=>{factor=base_i[i]/b0;pinta()};esc.appendChild(bt)});
+  can.oninput=()=>{const v=parseFloat(can.value);if(v>0){factor=v/b0;
+    tb.innerHTML='';f.ingredients.forEach(([n,qs])=>{const tr=document.createElement('tr'),a=document.createElement('td'),c=document.createElement('td');
+      a.textContent=n;c.className='q';c.textContent=escalar(qs[0],factor);tr.append(a,c);tb.appendChild(tr)});
+    esc.querySelectorAll('button').forEach((bt,i)=>bt.setAttribute('aria-pressed',String(Math.abs(base_i[i]/b0-factor)<1e-9)))}};
+  const ol=d.querySelector('ol');f.steps.forEach(s=>{const li=document.createElement('li');li.textContent=s;ol.appendChild(li)});
+  pinta();window.scrollTo(0,0);
+}
+function volver(){$('det').hidden=true;$('lista').hidden=false;if(location.hash)history.replaceState(null,'',location.pathname)}
+window.onpopstate=()=>{const c=location.hash.slice(1);c?abrir(c,false):volver()};
+
+(async()=>{
+  try{
+    fichas=JSON.parse(await acceso.archivo('fichas/produccion.json'));
+    $('msg').hidden=true;$('lista').hidden=false;lista();$('q').oninput=lista;
+    if(location.hash)abrir(location.hash.slice(1),false);
+  }catch(e){$('msg').textContent='No se pudieron cargar las fichas. Revisa tu conexión o vuelve a entrar.'}
+})();
+</script></body></html>
