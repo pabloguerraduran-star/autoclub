@@ -80,6 +80,7 @@ body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-fami
 </style>
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="../marca.js"></script>
 <script src="../acceso.js"></script>
 <script>
 // Reemplazo mínimo del runtime `dash` del Artifact: carga los CSV del bucket privado (con sesión) y resuelve los cálculos.
@@ -104,7 +105,8 @@ window.dash = (() => {
 })();
 </script>
 </head>
-<body>
+<body data-seccion="ventas">
+<script src="../shell.js"></script>
 <div class="wrap">
 
 
@@ -117,6 +119,14 @@ window.dash = (() => {
       Los platos de fondo nuevos (lomo, salmón, filete, escalopa) entraron esa semana y le quitaron venta a los sándwiches.</p>
     <p class="note">Montos netos sin IVA, desde el ranking por fecha comercial del sistema. La semana 1 tiene 7 días (incluye el lunes 5); las otras, 6 (martes a domingo). Fuera de la comparación quedan el 28-sep (prueba) y el 27-oct (día en curso).</p>
   </header>
+
+  <section class="card" id="cierres" aria-label="Cierres de caja" hidden>
+    <h2>Cierres de caja · venta diaria</h2>
+    <p class="note">Desde la foto del cierre de caja que sube el local (un cierre por turno). Total con IVA según el sistema; neto = total / 1,19. La diferencia es lo que contó el cajero menos lo que registró el sistema: debe ser $0.</p>
+    <div class="tiles" id="cierres-tiles" style="margin-top:var(--cds-gap-md)"></div>
+    <div class="scroll"><table id="cierres-tabla"><thead><tr>
+      <th>Día</th><th>Turnos</th><th>Efectivo</th><th>Débito</th><th>Propinas</th><th>Total c/IVA</th><th>Neto</th><th>Diferencia</th></tr></thead><tbody></tbody></table></div>
+  </section>
 
   <section id="semanas" class="tiles" aria-label="Resumen por semana"></section>
 
@@ -462,5 +472,40 @@ window.dash = (() => {
 </script>
 </div>
 <script>acceso.soloAdmin().then(() => dash.load(["semanas", "venta_por_dia", "venta_por_rubro", "productos", "productos_dia"]));</script>
+<script>
+(async () => {
+  try {
+    await acceso.soloAdmin();
+    const db = await acceso.cliente();
+    const [vd, fa] = await Promise.all([
+      db.from('ventas_dia').select('*').order('fecha_comercial', { ascending: false }).limit(31),
+      db.from('cierres_faltantes').select('cierre')]);
+    if (vd.error || !vd.data.length) return;
+    const sec = document.getElementById('cierres'); sec.hidden = false;
+    const clp = n => '$' + Math.round(Number(n)).toLocaleString('es-CL');
+    const dif = n => (Number(n) > 0 ? '+' : Number(n) < 0 ? '−' : '') + clp(Math.abs(Number(n)));
+    const dia = f => new Date(f + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' });
+    const tb = sec.querySelector('tbody');
+    vd.data.forEach(r => {
+      const tr = document.createElement('tr');
+      [dia(r.fecha_comercial), (r.turnos || '').replace(/TURNO /g, '').toLowerCase(), clp(r.efectivo), clp(r.debito), clp(r.propina),
+       clp(r.total_iva), clp(r.total_neto), Number(r.dif_total) === 0 ? '$0' : dif(r.dif_total)].forEach((t, i) => {
+        const td = document.createElement('td'); td.textContent = t;
+        if (i === 7 && Number(r.dif_total) !== 0) td.className = 'down';
+        tr.appendChild(td); });
+      tb.appendChild(tr);
+    });
+    const u = vd.data[0], difs = vd.data.filter(r => Number(r.dif_total) !== 0).length, falt = (fa.data || []).map(x => x.cierre);
+    const tile = (lab, big, row) => { const d = document.createElement('div'); d.className = 'card tile';
+      const a = document.createElement('span'); a.className = 'lab'; a.textContent = lab;
+      const b = document.createElement('span'); b.className = 'big'; b.textContent = big;
+      const c = document.createElement('span'); c.className = 'row'; c.textContent = row; d.append(a, b, c); return d; };
+    const T = document.getElementById('cierres-tiles');
+    T.append(tile('Último día cargado: ' + dia(u.fecha_comercial), clp(u.total_iva), 'neto ' + clp(u.total_neto) + ' · ' + u.cierres + (u.cierres > 1 ? ' cierres' : ' cierre')),
+      tile('Días con diferencia de caja', String(difs), 'de ' + vd.data.length + ' días cargados'),
+      tile('Cierres que faltan', falt.length ? falt.join(', ') : 'Ninguno', 'entre el primero y el último cargados'));
+  } catch (e) { /* sin datos de cierres: la sección queda oculta */ }
+})();
+</script>
 </body>
 </html>

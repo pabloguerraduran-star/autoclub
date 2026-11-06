@@ -2,8 +2,9 @@
 // Usuario compartido (ver _datos/plataforma_github/acceso_PRIVADO.json). La sesión queda guardada en el equipo.
 // Uso: const db = await acceso.cliente();  ·  const txt = await acceso.archivo('ventas/semanas.csv');
 window.acceso = (() => {
-  const URL_ = 'https://rrsmeduifzgalmxbaacj.supabase.co';
-  const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyc21lZHVpZnpnYWxteGJhYWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxNzMzNDMsImV4cCI6MjEwODc0OTM0M30.y__Xoz9-M-yUH1WNwoc7Z64-HOYqE2myjFDGYj1qwzc';
+  const MA = (window.MARCA || {}).supabase || {};
+  const URL_ = MA.url || 'https://rrsmeduifzgalmxbaacj.supabase.co';
+  const KEY = MA.key || '';
   let db, listo;
 
   const CSS = `
@@ -36,7 +37,7 @@ window.acceso = (() => {
       const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
       const d = document.createElement('div'); d.id = 'acc';
       d.innerHTML = `<form autocomplete="on" method="post" action="#">
-        <h1>Autoclub</h1><p>Plataforma interna. Ingresa con tu usuario y clave.</p>
+        <h1>${(window.MARCA||{}).nombre||'Plataforma'}</h1><p>Plataforma interna. Ingresa con tu usuario y clave.</p>
         <label>Usuario<input name="username" id="acc-u" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
         <label>Clave<input name="password" id="acc-c" type="password" autocomplete="current-password" required></label>
         <button>Entrar</button><div class="err" role="alert"></div></form>`;
@@ -46,7 +47,7 @@ window.acceso = (() => {
       f.onsubmit = async ev => {
         ev.preventDefault(); err.textContent = ''; btn.disabled = true;
         const u = f.username.value.trim().toLowerCase();
-        const { error } = await db.auth.signInWithPassword({ email: u.includes('@') ? u : u + '@autoclub.local', password: f.password.value });
+        const { error } = await db.auth.signInWithPassword({ email: u.includes('@') ? u : u + '@' + (MA.dominio || 'autoclub.local'), password: f.password.value });
         btn.disabled = false;
         if (error) { err.textContent = 'Usuario o clave incorrectos.'; return; }
         // Que el navegador ofrezca guardar la clave (Chrome/Android; Safari y el llavero de iPhone lo detectan solos al enviar)
@@ -78,14 +79,14 @@ window.acceso = (() => {
   async function esAdmin() {
     const c = await cliente();
     const { data } = await c.auth.getSession();
-    return ((data.session && data.session.user.email) || '') === 'administracion@autoclub.local';
+    return ((data.session && data.session.user.email) || '') === (MA.admin || 'administracion@autoclub.local');
   }
 
   async function soloAdmin() {
     if (await esAdmin()) return;
     const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
     const d = document.createElement('div'); d.id = 'acc';
-    d.innerHTML = `<form><h1>Autoclub</h1><p>Esta sección es de administración. Tu usuario no tiene acceso.</p>
+    d.innerHTML = `<form><h1>${(window.MARCA||{}).nombre||'Plataforma'}</h1><p>Esta sección es de administración. Tu usuario no tiene acceso.</p>
       <a href="../" style="color:inherit">Volver al inicio</a><button type="button">Entrar con otro usuario</button></form>`;
     d.querySelector('button').onclick = async () => { await db.auth.signOut(); location.reload(); };
     document.body.appendChild(d);

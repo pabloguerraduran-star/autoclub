@@ -1,9 +1,56 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>Autoclub</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F5F0E6;color:#1A1A78;font-family:Georgia,serif}a{color:#1A1A78;display:block;margin:.6rem 0;font-size:1.2rem}@media(prefers-color-scheme:dark){body{background:#141322;color:#ecebf5}a{color:#b4b4ff}}</style>
-</head><body><main><h1>Autoclub</h1><a href="estaciones/">Stocks y producción</a><a href="fichas/">Fichas de producción</a><a href="ventas/" data-admin>Ventas</a><a href="recepcion/" data-admin>Recepción de facturas</a></main>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex">
+<meta name="theme-color" content="#12124f">
+<title>Inicio</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=Libre+Franklin:wght@400;500;600;700&display=swap">
+<style>
+:root{--fondo:#F5F0E6;--panel:#FBF8F1;--ink:#1d1b2e;--muted:#6b6880;--rule:#dcd6c6;--acc:#1A1A78;--accfg:#F5F0E6;--prof:#12124f}
+@media(prefers-color-scheme:dark){:root{--fondo:#141322;--panel:#1c1b2e;--ink:#ecebf5;--muted:#a3a1b8;--rule:#34324a;--acc:#9c9cf2;--accfg:#141322;--prof:#15153a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--ink);font:16px/1.45 'Libre Franklin',system-ui,sans-serif}
+main{max-width:44rem;margin:0 auto;padding:20px 16px 24px;display:grid;gap:20px}
+.hola{font:600 1.9rem/1.1 'EB Garamond',Georgia,serif;margin:0}
+.fecha{color:var(--muted);margin:2px 0 0;text-transform:capitalize}
+.hoy{display:flex;align-items:center;gap:14px;padding:18px;border-radius:18px;background:var(--prof);color:#F5F0E6;text-decoration:none;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+@media(prefers-color-scheme:dark){.hoy{color:#ecebf5}}
+.hoy small{display:block;opacity:.75;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
+.hoy b{display:block;font:600 1.5rem/1.15 'EB Garamond',Georgia,serif;margin-top:2px}
+.hoy .go{margin-left:auto;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center;flex:none}
+.hoy .go svg{transform:rotate(180deg)}
+h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.card{display:grid;gap:10px;align-content:start;padding:16px;min-height:9.5rem;background:var(--panel);border:1px solid var(--rule);border-radius:16px;text-decoration:none;color:var(--ink);transition:transform .12s,border-color .12s}
+.card:active{transform:scale(.98)} .card:hover{border-color:var(--acc)}
+.card:focus-visible,.hoy:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.card .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)}
+.card b{font:600 1.15rem 'EB Garamond',Georgia,serif}
+.card span.d{color:var(--muted);font-size:.84rem;line-height:1.35}
+.card.adm::after{content:"Administración";justify-self:start;font-size:.68rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border:1px solid var(--rule);border-radius:99px;padding:2px 8px}
+@media(min-width:700px){.cards{grid-template-columns:repeat(3,1fr)}}
+</style></head>
+<body data-seccion="inicio">
+<main>
+  <header><h1 class="hola" id="hola">Hola</h1><p class="fecha" id="fecha"></p></header>
+  <a class="hoy" id="hoy" href="estaciones/"><div><small>Hoy</small><b id="hoyd">Estaciones y producción</b></div><span class="go" id="go"></span></a>
+  <section><h2>Secciones</h2><div class="cards" id="cards"></div></section>
+</main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="marca.js"></script>
 <script src="acceso.js"></script>
-<script>document.querySelector("main").style.visibility="hidden";acceso.esAdmin().then(a=>{if(!a)document.querySelectorAll("[data-admin]").forEach(e=>e.remove());document.querySelector("main").style.visibility="";});</script>
-</body></html>
+<script src="shell.js"></script>
+<script>
+const M=window.MARCA,h=new Date().getHours();
+document.title=M.nombre;
+document.getElementById('hola').textContent=(h<12?'Buenos días':h<20?'Buenas tardes':'Buenas noches');
+const d=new Date();document.getElementById('fecha').textContent=d.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'});
+document.getElementById('go').innerHTML=shellIcono('atras');
+const DIA=d.toLocaleDateString('es-CL',{weekday:'long'});
+document.getElementById('hoyd').textContent=DIA==='lunes'?'Lunes: sin producción':'Producción y stocks del '+DIA;
+function pinta(admin){
+  document.getElementById('cards').innerHTML=M.secciones.filter(s=>admin||!s.admin).map(s=>
+   `<a class="card${s.admin?' adm':''}" href="${s.ruta}"><span class="ic">${shellIcono(s.icono)}</span><b>${s.titulo}</b><span class="d">${s.desc||''}</span></a>`).join('');
+}
+pinta(false);
+acceso.cliente().then(()=>acceso.esAdmin()).then(pinta);
+</script></body></html>

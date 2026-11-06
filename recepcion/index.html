@@ -54,8 +54,7 @@ tr.lineas th { position: static; background: transparent; }
 .vacio { padding: 28px; text-align: center; color: var(--muted); }
 #aviso { margin-left: 8px; color: var(--ok); font-weight: 600; }
 </style></head>
-<body>
-<header class="band"><div class="in"><h1 class="brand">Autoclub<small>Recepción de facturas</small></h1><a href="../">← Inicio</a></div></header>
+<body data-seccion="recepcion">
 <main>
   <h2>Facturas recibidas</h2>
   <p class="sub">Lo que se leyó con <b>/recepcion</b> desde las fotos que suben los cajeros, en el mismo orden de columnas que la hoja GASTOS de Ventas y Gastos. Toca una fila para ver el detalle de productos. «Copiar para GASTOS» copia las filas filtradas para pegarlas en Excel.</p>
@@ -73,7 +72,9 @@ tr.lineas th { position: static; background: transparent; }
   </table></div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="../marca.js"></script>
 <script src="../acceso.js"></script>
+<script src="../shell.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const peso = n => n == null ? '' : '$' + Math.round(n).toLocaleString('es-CL');

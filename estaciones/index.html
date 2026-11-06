@@ -22,11 +22,10 @@
   --navy: #9c9cf2; --navy-deep: #15153a; --cream: #141322; --panel: #1c1b2e; --ink: #ecebf5; --muted: #a3a1b8;
   --rule: #34324a; --ok: #6fd39c; --ok-bg: #173826; --warn: #f0b95c; --warn-bg: #3a2b12; --band-fg: #ecebf5; color-scheme: dark; }
 body { background: var(--cream); color: var(--ink); font-family: var(--body); font-size: 15px; }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--navy-deep); }
-.band { background: var(--navy-deep); color: var(--band-fg); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; }
+.band { background: var(--navy-deep); color: var(--band-fg); position: sticky; top: calc(var(--sh-h, 56px) + env(safe-area-inset-top, 0px)); z-index: 5; border-top: 1px solid rgba(255,255,255,.12); }
 .band-in { max-width: 60rem; margin: 0 auto; padding-block: 14px 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 10px; }
 .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-.brand { font-family: var(--display); font-weight: 600; font-size: 1.45rem; letter-spacing: .01em; margin: 0; }
+.brand { font-family: var(--display); font-weight: 600; font-size: 1.15rem; letter-spacing: .01em; margin: 0; }
 .brand small { font-family: var(--body); font-weight: 400; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin-left: .5rem; }
 .date { display: flex; align-items: center; gap: 6px; }
 .date { flex-wrap: wrap; justify-content: flex-end; }
@@ -58,8 +57,8 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 .item:first-child { border-top: 0; }
 .item input { width: 24px; height: 24px; accent-color: var(--ok); margin: 0; cursor: pointer; }
 .item .name { min-width: 0; line-height: 1.3; }
-.item .fl { display: inline-block; margin-top: 4px; font-size: .78rem; color: var(--navy); text-decoration: underline; }
-.fichas-btn { display: inline-block; margin: 2px 0 12px; padding: 8px 14px; border: 1px solid var(--navy); border-radius: 999px; font-size: .9rem; color: var(--navy); text-decoration: none; }
+.item .fl { display: inline-flex; align-items: center; min-height: 32px; margin-top: 6px; padding: 0 12px; font-size: .8rem; font-weight: 600; color: var(--navy); border: 1px solid var(--navy); border-radius: 99px; text-decoration: none; }
+.fichas-btn { display: inline-flex; align-items: center; min-height: 44px; margin: 2px 0 12px; padding: 0 16px; border: 1px solid var(--navy); border-radius: 999px; font-size: .9rem; color: var(--navy); text-decoration: none; }
 .item .meta { display: block; font-size: .76rem; color: var(--muted); margin-top: 2px; }
 .item .qty { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; white-space: nowrap; }
 .item .qty small { font-weight: 400; color: var(--muted); margin-left: 3px; }
@@ -133,12 +132,12 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 .cred input { font: inherit; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); width: 14rem; max-width: 100%; }
 </style>
 </head>
-<body>
+<body data-seccion="estaciones">
 
 
 <div class="band"><div class="band-in">
   <div class="top">
-    <h1 class="brand">Autoclub <small>Stocks y producción</small></h1>
+    <h1 class="brand">Stocks y producción</h1>
     <div class="fechabox">
     <span class="dianom" id="dianom" aria-live="polite"></span>
     <div class="date" id="dias" role="group" aria-label="Día de la semana"></div>
@@ -153,7 +152,6 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     <a href="#caliente" data-v="caliente">Cuarto caliente</a>
     <a href="#produccion" data-v="produccion">Producción</a>
     <a href="#pedidos" data-v="pedidos">Pedidos</a>
-    <a href="../fichas/">Fichas</a>
     <a href="#" id="cambiar" class="cambiar" hidden>Cambiar de estación</a>
   </nav>
 </div></div>
@@ -164,7 +162,9 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="../marca.js"></script>
 <script src="../acceso.js"></script>
+<script src="../shell.js"></script>
 <script>
 (function () {
   const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -326,7 +326,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     const who = ok && mark && mark.at ? `✓ ${mark.by || ''} ${new Date(mark.at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`.replace(/\s+/g, ' ') : null;
     const fi = (S.fichas || {})[cod];
     const fq = fi && q > 0 && ((fi.u === 'kg' && un === 'kg') || (fi.u === 'un' && un === 'un')) ? '?c=' + String(Math.round(q * 100) / 100) : '';
-    const flink = fi ? el('a', { class: 'fl', href: '../fichas/' + fq + '#' + fi.c, text: 'Ver ficha' }) : null;
+    const flink = fi ? el('a', { class: 'fl', href: '../fichas/' + (fq ? fq + '&de=' + (est === 'produccion' ? 'produccion' : 'estacion') : '?de=' + (est === 'produccion' ? 'produccion' : 'estacion')) + '#' + fi.c, text: 'Ver ficha ›' }) : null;
     const name = el('span', { class: 'name' }, el('span', { text: art }), (meta || who) ? el('span', { class: 'meta', text: [meta, who].filter(Boolean).join(' · ') }) : null, flink);
     const row = el('label', { class: 'item' + (ok ? ' done' : ''), for: cb.id }, cb, name,
       el('span', { class: 'qty' }, cant(q, un)[0], el('small', { text: cant(q, un)[1] })));
@@ -356,7 +356,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
   function renderProd(d) {
     main.append(el('section', { class: 'group' }, el('h2', { text: 'Producción' }),
       el('p', { class: 'sub', text: `Preparaciones (PRO) que se producen el ${fmtF(S.fecha)}. Se produce de martes a viernes para llegar con la cocina abastecida al fin de semana: proteínas una vez por semana y empanaditas de a dos variedades por día. Las salsas y bases las prepara cada estación.` }),
-      el('a', { class: 'fichas-btn', href: '../fichas/?g=' + encodeURIComponent('Producción'), text: 'Fichas de Producción' })));
+      el('a', { class: 'fichas-btn', href: '../fichas/?de=produccion&g=' + encodeURIComponent('Producción'), text: 'Fichas de Producción' })));
     if (lunes(d)) return;
     const rows = prodRows(d);
     if (!rows.length) main.append(el('div', { class: 'notice', text: `${d}: no hay producción programada. Revisa que los stocks de cada estación estén completos y anota lo que falte para el martes.` }));
