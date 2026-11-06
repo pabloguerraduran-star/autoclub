@@ -500,15 +500,32 @@ td small.prov { display: block; color: var(--muted); font-size: .74rem; margin-t
     lst.forEach(x => main.append(pedidoCard(x)));
     main.append(el('p', { class: 'foot', text: 'Siempre se pide el día anterior, antes de las 15:00. Vegetales y panes llegan martes, jueves y sábado. Carnes y pescados frescos: martes y jueves. Congelados (camarones, ostiones, jaiba), lácteos y abarrotes: martes, para toda la semana. Barra: jueves, para toda la semana. Postres comprados (crema volteada, tiramisú): martes y viernes. La columna Proveedor es la que administración fue completando; "Sin proveedor asignado" = todavía no está definido.' }));
   }
+  // Los proveedores los agrega administración a mano (se asocian a insumos): nombre corto, sin repetir.
+  async function nuevoProveedor() {
+    const t = (window.prompt('Nombre corto del proveedor nuevo (ej. Ancavil, Bidfood):') || '').trim().replace(/\s+/g, ' ');
+    if (!t) return null;
+    if (t.length > 24) { toast('Usa un nombre más corto (máximo 24 letras).'); return null; }
+    const ya = (S.lista || []).find(c => c.toLowerCase() === t.toLowerCase());
+    if (ya) { toast(ya + ' ya está en la lista.'); return ya; }
+    const r = await S.db.from('proveedores_lista').insert({ corto: t, orden: (S.lista || []).length + 100 });
+    if (r.error) { toast('No se pudo agregar el proveedor.'); return null; }
+    S.lista.push(t);
+    document.querySelectorAll('select.provsel').forEach(o => o.insertBefore(el('option', { value: t, text: t }), o.lastElementChild));
+    toast('Proveedor agregado: ' + t);
+    return t;
+  }
   function provCelda(i) {
     const cur = (S.provs || {})[i.cod] || '';
     if (!S.admin) return el('td', { class: 'prov' + (cur ? '' : ' sin'), text: cur || 'Sin proveedor asignado' });
     const sel = el('select', { class: 'provsel' + (cur ? '' : ' sin'), 'data-cod': i.cod, 'aria-label': 'Proveedor de ' + i.art });
     sel.append(el('option', { value: '', text: 'Sin proveedor asignado' }));
     (S.lista || []).forEach(c => sel.append(el('option', { value: c, text: c })));
+    sel.append(el('option', { value: '__nuevo__', text: '+ Nuevo proveedor…' }));
     sel.value = cur;
     sel.addEventListener('change', async () => {
-      const v = sel.value, antes = (S.provs || {})[i.cod] || '';
+      const antes = (S.provs || {})[i.cod] || '';
+      if (sel.value === '__nuevo__') { sel.value = antes; const nuevo = await nuevoProveedor(); if (!nuevo) return; sel.value = nuevo; }
+      const v = sel.value;
       const r = v ? await S.db.from('pedido_proveedor').upsert({ insumo_cod: i.cod, proveedor: v, origen: 'manual', actualizado_en: new Date().toISOString() })
                   : await S.db.from('pedido_proveedor').delete().eq('insumo_cod', i.cod);
       if (r.error) { sel.value = antes; toast('No se pudo guardar el proveedor. Revisa tu conexión.'); return; }
