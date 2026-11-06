@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Ventas Autoclub</title>
+<title>Análisis de ventas y gastos · Autoclub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=Libre+Franklin:wght@400;500;600&display=swap">
 <style>
@@ -112,13 +112,33 @@ window.dash = (() => {
 
 <div class="ac">
   <header>
-    <h1 id="titulo">Ventas Autoclub · 3 semanas de octubre</h1>
-    <p class="lede" id="takeaway">La semana <span data-source="semanas" data-field="etiqueta" data-where="sem=S3" class="dash-skeleton">—</span> vendió
+    <h1 id="titulo">Análisis de ventas y gastos</h1>
+    <p class="lede" id="takeaway" hidden>La semana <span data-source="semanas" data-field="etiqueta" data-where="sem=S3" class="dash-skeleton">—</span> vendió
       <b data-source="semanas" data-field="venta" data-where="sem=S3" class="dash-skeleton">—</b> neto, con
       <b data-source="var_semanal" data-field="var_dia" data-where="sem=S3" class="dash-skeleton">—</b> de venta por día frente a la semana anterior.
       Los platos de fondo nuevos (lomo, salmón, filete, escalopa) entraron esa semana y le quitaron venta a los sándwiches.</p>
-    <p class="note">Montos netos sin IVA, desde el ranking por fecha comercial del sistema. La semana 1 tiene 7 días (incluye el lunes 5); las otras, 6 (martes a domingo). Fuera de la comparación quedan el 28-sep (prueba) y el 27-oct (día en curso).</p>
+    <p class="note" hidden>Montos netos sin IVA, desde el ranking por fecha comercial del sistema. La semana 1 tiene 7 días (incluye el lunes 5); las otras, 6 (martes a domingo). Fuera de la comparación quedan el 28-sep (prueba) y el 27-oct (día en curso).</p>
   </header>
+
+  <section class="card" id="gestion" aria-label="Gestión: ventas y compras" hidden>
+    <div class="rk-head">
+      <h2>Gestión · ventas y compras</h2>
+      <div class="seg" role="tablist" aria-label="Agrupar por">
+        <button role="tab" id="g-dia" aria-selected="false">Por día</button>
+        <button role="tab" id="g-sem" aria-selected="true">Por semana</button>
+        <button role="tab" id="g-mes" aria-selected="false">Por mes</button>
+      </div>
+    </div>
+    <div class="ctrls" style="margin-top:var(--cds-gap-sm)">
+      <div><label for="g-filtro" class="note">Mes</label><br><select id="g-filtro" class="search"></select></div>
+    </div>
+    <p class="note" id="g-nota"></p>
+    <div class="tiles" id="g-tiles" style="margin-top:var(--cds-gap-md)"></div>
+    <div class="chart" id="g-chart"></div>
+    <div class="legend"><span style="--c:var(--ac-s3)">Venta neta</span><span style="--c:#c98b2b">Compras netas</span></div>
+    <div class="scroll"><table id="g-tabla"><thead><tr>
+      <th id="g-th">Período</th><th>Venta neta</th><th>Compras netas</th><th>Compras / venta</th><th class="hide-n">Unidades</th><th>Margen %</th></tr></thead><tbody></tbody></table></div>
+  </section>
 
   <section class="card" id="cierres" aria-label="Cierres de caja" hidden>
     <h2>Cierres de caja · venta diaria</h2>
@@ -127,6 +147,8 @@ window.dash = (() => {
     <div class="scroll"><table id="cierres-tabla"><thead><tr>
       <th>Día</th><th>Turnos</th><th>Efectivo</th><th>Débito</th><th>Propinas</th><th>Total c/IVA</th><th>Neto</th><th>Diferencia</th></tr></thead><tbody></tbody></table></div>
   </section>
+
+  <h2 class="g-sep" style="margin:var(--cds-gap-md) 0 0">Detalle de octubre · semanas 1 a 3</h2>
 
   <section id="semanas" class="tiles" aria-label="Resumen por semana"></section>
 
@@ -505,6 +527,99 @@ window.dash = (() => {
       tile('Días con diferencia de caja', String(difs), 'de ' + vd.data.length + ' días cargados'),
       tile('Cierres que faltan', falt.length ? falt.join(', ') : 'Ninguno', 'entre el primero y el último cargados'));
   } catch (e) { /* sin datos de cierres: la sección queda oculta */ }
+})();
+</script>
+<script>
+(async () => {
+  try {
+    await acceso.soloAdmin();
+    const db = await acceso.cliente();
+    const todo = async q => { let out = [], i = 0; for (;;) { const { data, error } = await q().range(i, i + 999); if (error) throw error; out = out.concat(data); if (data.length < 1000) return out; i += 1000; } };
+    const [R, DOC] = await Promise.all([
+      todo(() => db.from('ranking_prod').select('fecha_comercial,unidades,neto,costo_unit,costo_total').order('fecha_comercial')),
+      todo(() => db.from('documentos').select('estado,tipo,fecha_doc,neto').eq('estado', 'confirmado').order('fecha_doc'))]);
+    if (!R.length) return;
+    const sec = document.getElementById('gestion'); sec.hidden = false;
+    const clp = n => '$' + Math.round(n).toLocaleString('es-CL');
+    const mm = n => '$' + (n / 1e6).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' MM';
+    const pc = (v, d = 0) => v == null || !isFinite(v) ? '—' : (v * 100).toLocaleString('es-CL', { maximumFractionDigits: d }) + '%';
+    const spc = v => v == null || !isFinite(v) ? '' : (v > 0 ? '+' : '') + pc(v);
+    const wd = f => (new Date(f + 'T12:00:00').getDay() + 6) % 7;
+    const lunes = f => { const d = new Date(f + 'T12:00:00'); d.setDate(d.getDate() - wd(f)); return d.toISOString().slice(0, 10); };
+    const fdia = f => new Date(f + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' });
+    const fsem = f => { const d = new Date(f + 'T12:00:00'); const e = new Date(d); e.setDate(e.getDate() + 6);
+      const o = { day: 'numeric', month: 'short' }; return d.toLocaleDateString('es-CL', o) + ' – ' + e.toLocaleDateString('es-CL', o); };
+    const mesk = f => f.slice(0, 7), fmes = k => { const t = new Date(k + '-15T12:00:00').toLocaleDateString('es-CL', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
+    const ultVenta = R[R.length - 1].fecha_comercial;
+    const meses = [...new Set(R.map(r => mesk(r.fecha_comercial)).concat(DOC.filter(d => d.fecha_doc).map(d => mesk(d.fecha_doc))))].sort();
+    const selM = document.getElementById('g-filtro');
+    selM.innerHTML = '<option value="">Todos los meses</option>' + meses.map(m => `<option value="${m}">${fmes(m)}</option>`).join('');
+
+    // Un registro por período: venta, compras, unidades, venta/costo con costo conocido
+    function agrupa(key) {
+      const m = new Map(), g = k => { if (!m.has(k)) m.set(k, { k, v: 0, c: 0, u: 0, vCon: 0, costo: 0, dv: new Set(), dc: new Set() }); return m.get(k); };
+      R.forEach(r => { const x = g(key(r.fecha_comercial)); x.v += +r.neto; x.u += +r.unidades; x.dv.add(r.fecha_comercial);
+        if (r.costo_unit != null) { x.vCon += +r.neto; x.costo += +r.costo_total; } });
+      DOC.forEach(d => { if (!d.fecha_doc) return; const x = g(key(d.fecha_doc)); x.c += (+d.neto || 0) * (d.tipo === 'NOTA DE CREDITO' ? -1 : 1); x.dc.add(d.fecha_doc); });
+      return [...m.values()].sort((a, b) => a.k < b.k ? -1 : 1).map(x => ({ ...x, cv: x.v ? x.c / x.v : null, mg: x.vCon ? 1 - x.costo / x.vCon : null, cob: x.v ? x.vCon / x.v : 0 }));
+    }
+    let modo = 'sem', mesSel = '';
+    const tile = (lab, big, row) => `<div class="card tile"><span class="lab">${lab}</span><span class="big">${big}</span><span class="row">${row || ''}</span></div>`;
+
+    function pinta() {
+      const rows = agrupa(modo === 'dia' ? f => f : modo === 'sem' ? lunes : mesk), lab = modo === 'dia' ? fdia : modo === 'sem' ? fsem : fmes;
+      let vis = rows;
+      if (modo !== 'mes' && mesSel) {
+        const ini = mesSel + '-01', fin = mesSel + '-31';
+        vis = rows.filter(r => modo === 'dia' ? (r.k >= ini && r.k <= fin) : (new Date(r.k + 'T12:00:00').getTime() + 6 * 864e5 >= new Date(ini + 'T12:00:00').getTime() && r.k <= fin));
+      } else if (modo === 'dia') vis = rows.slice(-21);                           // sin filtro: últimos 21 días
+      if (!vis.length) vis = rows;
+      const conVenta = vis.filter(r => r.v > 0).length ? vis.filter(r => r.v > 0) : rows.filter(r => r.v > 0), ult = conVenta[conVenta.length - 1], ant = conVenta[conVenta.length - 2];
+      const dias = r => r.dv.size, base = modo !== 'dia' ? ' (' + dias(ult) + ' días)' : '';
+      const norm = r => modo !== 'dia' ? r.v / dias(r) : r.v;
+      const varV = ant && (modo === 'dia' || (dias(ult) >= 5 && dias(ant) >= 5)) ? norm(ult) / norm(ant) - 1 : null;
+      const ratio = modo !== 'dia' ? (dias(ult) >= 5 && ult.v ? ult.c / ult.v : null) : (() => { const t = new Date(ult.k + 'T12:00:00'), a = new Date(t); a.setDate(a.getDate() - 6); const ini = a.toISOString().slice(0, 10);
+        const w = rows.filter(r => r.k >= ini && r.k <= ult.k), v = w.reduce((x, r) => x + r.v, 0), c = w.reduce((x, r) => x + r.c, 0); return v ? c / v : null; })();
+      document.getElementById('g-th').textContent = modo === 'dia' ? 'Día' : modo === 'sem' ? 'Semana' : 'Mes'; selM.disabled = modo === 'mes';
+      document.getElementById('g-nota').textContent = `Venta neta (sin IVA) del ranking del POS, cargada hasta el ${fdia(ultVenta)}. Compras = facturas y boletas confirmadas en Recepción por su fecha de documento, sin IVA, menos notas de crédito: no es el costo de venta (no considera inventario) y puede faltar lo que aún no se ha subido. Margen = venta menos costo real de Pricing, solo sobre los productos con costo conocido.`;
+      document.getElementById('g-tiles').innerHTML =
+        tile(modo === 'dia' ? 'Último día con venta · ' + fdia(ult.k) : (modo === 'sem' ? 'Última semana · ' + fsem(ult.k) : 'Último mes · ' + fmes(ult.k)) + base, clp(ult.v),
+          varV == null ? '' : `<span class="${varV >= 0 ? 'up' : 'down'}">${spc(varV)}</span> ${modo !== 'dia' ? 'por día ' : ''}vs ${modo === 'dia' ? 'día' : modo === 'sem' ? 'semana' : 'mes'} anterior`) +
+        tile('Compras del mismo período', clp(ult.c), ult.c ? '' : 'sin documentos cargados') +
+        tile(modo === 'dia' ? 'Compras / venta · 7 días hasta ese día' : 'Compras / venta', ratio == null ? '—' : pc(ratio, 1), 'no es costo de venta; compras se hacen para varios días') +
+        tile('Margen sobre venta con costo', pc(ult.mg, 1), `costo conocido en ${pc(ult.cob)} de la venta`);
+      // gráfico de barras agrupadas: venta y compras
+      const el = document.getElementById('g-chart'); el.innerHTML = '';
+      const W = Math.max(300, el.clientWidth), H = 260, ml = 54, mb = 38;
+      const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
+      const sx = d3.scaleBand(vis.map(r => r.k), [ml, W - 4]).paddingInner(0.2), sub = d3.scaleBand(['v', 'c'], [0, sx.bandwidth()]).padding(0.06);
+      const sy = d3.scaleLinear([0, (d3.max(vis, r => Math.max(r.v, r.c)) || 1) * 1.08], [H - mb, 8]).nice();
+      const fm = v => v >= 1e6 ? (v / 1e6).toLocaleString('es-CL') + ' MM' : Math.round(v / 1000) + ' mil';
+      sy.ticks(4).forEach(t => { svg.append('line').attr('x1', ml).attr('x2', W - 4).attr('y1', sy(t)).attr('y2', sy(t)).attr('stroke', 'var(--cds-chart-grid)');
+        svg.append('text').attr('x', ml - 6).attr('y', sy(t)).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 10.5).attr('fill', 'var(--color-fg-muted)').text(fm(t)); });
+      const tp = d3.select(el).append('div').attr('class', 'tip').style('opacity', 0);
+      vis.forEach(r => [['v', 'var(--ac-s3)'], ['c', '#c98b2b']].forEach(([k, col]) => {
+        svg.append('rect').attr('x', sx(r.k) + sub(k)).attr('width', sub.bandwidth()).attr('y', sy(Math.max(0, r[k]))).attr('height', Math.max(0, sy(0) - sy(Math.max(0, r[k])))).attr('rx', 2).attr('fill', col)
+          .on('mousemove', ev => { tp.html(`<div class="h">${lab(r.k)}</div>Venta ${clp(r.v)}<br>Compras ${clp(r.c)}`); const [mx, my] = d3.pointer(ev, el);
+            tp.style('left', Math.min(Math.max(0, mx + 10), el.clientWidth - tp.node().offsetWidth) + 'px').style('top', Math.max(0, my - 50) + 'px').style('opacity', 1); })
+          .on('mouseleave', () => tp.style('opacity', 0)); }));
+      const every = Math.ceil(vis.length / Math.max(3, Math.floor((W - ml) / (modo === 'dia' ? 48 : modo === 'sem' ? 90 : 70))));
+      vis.forEach((r, i) => { if (i % every) return; svg.append('text').attr('x', sx(r.k) + sx.bandwidth() / 2).attr('y', H - 18).attr('text-anchor', 'middle').attr('font-size', 10).attr('fill', 'var(--color-fg-muted)')
+        .text(modo === 'mes' ? fmes(r.k).split(' ')[0].slice(0, 3) : new Date(r.k + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })); });
+      // tabla (más reciente arriba)
+      const tb = document.querySelector('#g-tabla tbody'); tb.innerHTML = '';
+      vis.slice().reverse().forEach(r => {
+        const tr = document.createElement('tr');
+        [lab(r.k) + (modo !== 'dia' ? ' · ' + dias(r) + ' d' : ''), r.v ? clp(r.v) : '—', r.c ? clp(r.c) : '—', modo !== 'dia' && dias(r) >= 5 && r.c ? pc(r.cv, 1) : '—', Math.round(r.u).toLocaleString('es-CL'), pc(r.mg, 1)]
+          .forEach((t, i) => { const td = document.createElement('td'); td.textContent = t; if (i === 4) td.className = 'hide-n'; tr.appendChild(td); });
+        tb.appendChild(tr); });
+    }
+    const set = m => { modo = m; ['dia', 'sem', 'mes'].forEach(x => document.getElementById('g-' + x).setAttribute('aria-selected', m === x)); pinta(); };
+    ['dia', 'sem', 'mes'].forEach(x => document.getElementById('g-' + x).onclick = () => set(x));
+    selM.onchange = () => { mesSel = selM.value; pinta(); };
+    let t; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(pinta, 200); });
+    pinta();
+  } catch (e) { console.error('gestión', e); }
 })();
 </script>
 </body>
