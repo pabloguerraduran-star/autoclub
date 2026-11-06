@@ -151,7 +151,6 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     <a href="#frio" data-v="frio">Cuarto frío</a>
     <a href="#caliente" data-v="caliente">Cuarto caliente</a>
     <a href="#produccion" data-v="produccion">Producción</a>
-    <a href="#pedidos" data-v="pedidos">Pedidos</a>
     <a href="#" id="cambiar" class="cambiar" hidden>Cambiar de estación</a>
   </nav>
 </div></div>
@@ -189,17 +188,21 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 
   // ---- navegación
   // cada equipo elige su vista una vez (queda recordada); el admin ve todas las pestañas
-  const VISTAS = { admin: ['Admin / Chef', 'Avance de todas las estaciones, producción y pedidos'], barra: ['Barra', 'Bebidas, jugos y pisco sour'],
+  const VISTAS = { admin: ['Admin / Chef', 'Avance de todas las estaciones y producción'], barra: ['Barra', 'Bebidas, jugos y pisco sour'],
     plancha: ['Plancha', 'Sándwiches y completos'], frio: ['Cuarto frío', 'Ceviches, ensaladas y postres'], caliente: ['Cuarto caliente', 'Fondos, pastas y frituras'],
     produccion: ['Producción', 'Proteínas y empanaditas del día'] };
   function getModo() { try { return localStorage.getItem('autoclub_modo'); } catch (e) { return S.modoMem || null; } }
   function setModo(m) { S.modoMem = m; try { m ? localStorage.setItem('autoclub_modo', m) : localStorage.removeItem('autoclub_modo'); } catch (e) {} }
   function readHash() { const h = location.hash.slice(1), modo = getModo();
-    if (!modo) S.vista = 'selector';
+    if (h === 'pedidos') S.vista = 'pedidos';   // sección Compras: la ve cualquiera con sesión, sin elegir estación
+    else if (!modo) S.vista = 'selector';
     else if (modo !== 'admin') S.vista = modo;
     else S.vista = ['admin', 'barra', 'plancha', 'frio', 'caliente', 'produccion', 'pedidos'].includes(h) ? h : 'admin';
     document.querySelectorAll('.tabs a[data-v]').forEach(a => a.hidden = !(modo === 'admin' || a.dataset.v === modo));
-    $('#cambiar').hidden = !modo;
+    $('#cambiar').hidden = !modo || S.vista === 'pedidos';
+    document.querySelector('.tabs').hidden = S.vista === 'pedidos';
+    document.querySelector('.brand').textContent = S.vista === 'pedidos' ? 'Compras' : 'Stocks y producción';
+    if (window.shell) { shell.miga([[S.vista === 'pedidos' ? 'Compras' : 'Estaciones']]); shell.seccion(S.vista === 'pedidos' ? 'compras' : 'estaciones'); }
     $('#dias').hidden = S.vista === 'pedidos'; $('#fams').hidden = S.vista !== 'pedidos';
     $('#dianom').textContent = S.vista === 'pedidos' ? (S.fam || 'Pedidos') : dia(S.fecha);
     document.querySelectorAll('.tabs a').forEach(a => a.dataset.v === S.vista ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));

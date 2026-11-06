@@ -4,12 +4,13 @@
 (function () {
   const M = window.MARCA, SC = document.currentScript;
   const RAIZ = new URL('.', SC.src).href;
-  const SEC = document.body.dataset.seccion || '';
+  let SEC = document.body.dataset.seccion || '';
   const IC = {
     inicio: '<path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>',
     lista: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>',
     libro: '<path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2V5z"/><path d="M8 7h7M8 11h7"/>',
     grafico: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+    carrito: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 11.2a2 2 0 002 1.6h7.7a2 2 0 002-1.5L21 7H6"/>',
     caja: '<path d="M3 8l9-5 9 5v9l-9 5-9-5V8z"/><path d="M3 8l9 5 9-5M12 13v9"/>',
     atras: '<path d="M15 5l-7 7 7 7"/>', menu: '<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>'
   };
@@ -42,7 +43,7 @@
   #sh-menu button{all:unset;box-sizing:border-box;display:block;width:100%;padding:12px;border-radius:10px;cursor:pointer;font-size:.95rem}
   #sh-menu button:hover{background:rgba(127,127,127,.14)}
   #sh-nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--sh-panel);border-top:1px solid var(--sh-rule);padding-bottom:env(safe-area-inset-bottom,0px);display:flex;justify-content:center;font-family:'Libre Franklin',system-ui,sans-serif}
-  #sh-nav a{flex:1 1 0;max-width:7.5rem;display:grid;justify-items:center;gap:2px;padding:8px 4px 9px;text-decoration:none;color:var(--sh-muted);font-size:.72rem;font-weight:500}
+  #sh-nav a{flex:1 1 0;max-width:6.5rem;display:grid;justify-items:center;gap:2px;padding:8px 2px 9px;text-decoration:none;color:var(--sh-muted);font-size:.7rem;font-weight:500}
   #sh-nav a span.ic{display:grid;place-items:center;width:56px;height:30px;border-radius:99px;transition:background .15s}
   #sh-nav a[aria-current="page"]{color:var(--sh-acc);font-weight:700}
   #sh-nav a[aria-current="page"] span.ic{background:color-mix(in srgb,var(--sh-acc) 18%,transparent)}
@@ -72,7 +73,9 @@
 
   const nav = document.createElement('nav'); nav.id = 'sh-nav'; nav.setAttribute('aria-label', 'Secciones');
   document.body.appendChild(nav);
+  let ADMIN = false;
   function pintaNav(admin) {
+    ADMIN = admin;
     const items = [{ id: 'inicio', corto: 'Inicio', ruta: '', icono: 'inicio' }].concat(M.secciones.filter(s => admin || !s.admin));
     nav.innerHTML = items.map(s => `<a href="${RAIZ}${s.ruta}" ${((s.id === 'inicio' && SEC === 'inicio') || s.id === SEC) ? 'aria-current="page"' : ''}><span class="ic">${svg(s.icono)}</span><span>${s.corto}</span></a>`).join('');
   }
@@ -96,7 +99,7 @@
     atras.onclick = () => { const p = todo[todo.length - 2]; if (typeof p[1] === 'string') location.href = p[1]; else p[1](); };
   }
   render();
-  window.shell = { miga(c) { crumbs = c; render(); }, raiz: RAIZ };
+  window.shell = { miga(c) { crumbs = c; render(); }, raiz: RAIZ, seccion(id) { SEC = id; pintaNav(ADMIN); } };
 
   // menú
   const mas = top.querySelector('#sh-mas'), menu = top.querySelector('#sh-menu');
