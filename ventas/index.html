@@ -146,6 +146,20 @@ window.dash = (() => {
       <th id="g-th">Período</th><th>Venta neta</th><th>Compras netas</th><th>Compras / venta</th><th class="hide-n">Unidades</th><th>Margen %</th></tr></thead><tbody></tbody></table></div>
   </section>
 
+  <section class="card" id="g-rubros" hidden>
+    <h2>Venta por rubro</h2>
+    <p class="note" id="g-rubros-nota"></p>
+    <div class="scroll"><table id="g-rubros-t"></table></div>
+  </section>
+
+  <section class="card" id="g-prods" hidden>
+    <h2>Ranking de productos</h2>
+    <p class="note" id="g-prods-nota"></p>
+    <div class="ctrls"><div><label for="g-buscar" class="note">Buscar producto o rubro</label><br>
+      <input id="g-buscar" class="search" type="search" placeholder="Ej: churrasco, cocteles"></div></div>
+    <div class="scroll"><table id="g-prods-t"></table></div>
+  </section>
+
   <section class="card" id="cierres" aria-label="Cierres de caja" hidden>
     <h2>Cierres de caja · venta diaria</h2>
     <p class="note">Desde la foto del cierre de caja que sube el local (un cierre por turno). Total con IVA según el sistema; neto = total / 1,19. La diferencia es lo que contó el cajero menos lo que registró el sistema: debe ser $0.</p>
@@ -154,11 +168,9 @@ window.dash = (() => {
       <th>Día</th><th>Turnos</th><th>Efectivo</th><th>Débito</th><th>Propinas</th><th>Total c/IVA</th><th>Neto</th><th>Diferencia</th></tr></thead><tbody></tbody></table></div>
   </section>
 
-  <h2 class="g-sep" style="margin:var(--cds-gap-md) 0 0">Detalle de octubre · semanas 1 a 3</h2>
+  <section id="semanas" class="tiles" style="display:none" aria-label="Resumen por semana"></section>
 
-  <section id="semanas" class="tiles" aria-label="Resumen por semana"></section>
-
-  <div class="grid2">
+  <div class="grid2" style="display:none">
     <section class="card" id="por-dia">
       <h2>Venta por día de la semana</h2>
       <p class="note">Viernes y sábado concentran la venta; el viernes 23 y el sábado 24 de octubre fueron los días más altos del mes.</p>
@@ -184,7 +196,7 @@ window.dash = (() => {
     </section>
   </div>
 
-  <section class="card" id="productos">
+  <section class="card" id="productos" style="display:none">
     <div class="rk-head">
       <h2>Ranking de productos</h2>
       <div class="seg" role="tablist" aria-label="Vista del ranking">
@@ -542,9 +554,13 @@ window.dash = (() => {
     const db = await acceso.cliente();
     const todo = async q => { let out = [], i = 0; for (;;) { const { data, error } = await q().range(i, i + 999); if (error) throw error; out = out.concat(data); if (data.length < 1000) return out; i += 1000; } };
     const [R, DOC] = await Promise.all([
-      todo(() => db.from('ranking_prod').select('fecha_comercial,unidades,neto,costo_unit,costo_total').order('fecha_comercial')),
+      todo(() => db.from('ranking_prod').select('fecha_comercial,cod,producto,rubro,unidades,neto,costo_unit,costo_total').order('fecha_comercial')),
       todo(() => db.from('documentos').select('estado,tipo,fecha_doc,neto').eq('estado', 'confirmado').order('fecha_doc'))]);
     if (!R.length) return;
+    // Días sin ranking pero con cierre de caja: la venta sale de los cierres (total / 1,19), sin detalle de productos.
+    const vd = await db.from('ventas_dia').select('fecha_comercial,total_neto,turnos');
+    const fRank = new Set(R.map(r => r.fecha_comercial));
+    const CIX = ((vd && vd.data) || []).filter(c => !fRank.has(c.fecha_comercial));
     const sec = document.getElementById('gestion'); sec.hidden = false;
     const $ = id => document.getElementById(id);
     const clp = n => '$' + Math.round(n).toLocaleString('es-CL');
@@ -559,19 +575,20 @@ window.dash = (() => {
     const fdia = f => mk(f).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' });
     const fsem = f => { const o = { day: 'numeric', month: 'short' }; return mk(f).toLocaleDateString('es-CL', o) + ' – ' + mk(addD(f, 6)).toLocaleDateString('es-CL', o); };
     const fmes = k => { const t = new Date(k + '-15T12:00:00').toLocaleDateString('es-CL', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
-    const ultVenta = R[R.length - 1].fecha_comercial;
-    const todasF = R.map(r => r.fecha_comercial).concat(DOC.filter(d => d.fecha_doc).map(d => d.fecha_doc)).sort();
+    const ultVenta = R.map(r => r.fecha_comercial).concat(CIX.map(c => c.fecha_comercial)).sort().pop();
+    const todasF = R.map(r => r.fecha_comercial).concat(CIX.map(c => c.fecha_comercial)).concat(DOC.filter(d => d.fecha_doc).map(d => d.fecha_doc)).sort();
     const F0 = todasF[0], F1 = todasF[todasF.length - 1];
 
     // período -> registro (ventas, compras, unidades, margen). Se arma para cualquier clave, aunque no tenga datos.
     function agrupa(key) {
       const m = new Map(), g = k => { if (!m.has(k)) m.set(k, { k, v: 0, c: 0, u: 0, vCon: 0, costo: 0, dv: new Set() }); return m.get(k); };
       R.forEach(r => { const x = g(key(r.fecha_comercial)); x.v += +r.neto; x.u += +r.unidades; x.dv.add(r.fecha_comercial); if (r.costo_unit != null) { x.vCon += +r.neto; x.costo += +r.costo_total; } });
+      CIX.forEach(c => { const x = g(key(c.fecha_comercial)); x.v += +c.total_neto; x.dv.add(c.fecha_comercial); x.ci = (x.ci || 0) + 1; });
       DOC.forEach(d => { if (d.fecha_doc) g(key(d.fecha_doc)).c += (+d.neto || 0) * (d.tipo === 'NOTA DE CREDITO' ? -1 : 1); });
       return m;
     }
     const fin = x => ({ ...x, cv: x.v ? x.c / x.v : null, mg: x.vCon ? 1 - x.costo / x.vCon : null, cob: x.v ? x.vCon / x.v : 0 });
-    const vacio = k => ({ k, v: 0, c: 0, u: 0, vCon: 0, costo: 0, dv: new Set() });
+    const vacio = k => ({ k, v: 0, c: 0, u: 0, vCon: 0, costo: 0, dv: new Set(), ci: 0 });
     const G = { dia: agrupa(f => f), sem: agrupa(lunes), mes: agrupa(mesk) };
     const get = (modo, k) => fin(G[modo].get(k) || vacio(k));
 
@@ -603,6 +620,57 @@ window.dash = (() => {
       pinta();
     }
 
+    // ---- Rankings del período elegido (rubros y productos), con el mismo selector día / semana / mes
+    const rango = (m, k) => m === 'dia' ? [k, k] : m === 'sem' ? [k, addD(k, 6)] : [k + '-01', k + '-31'];
+    const filasR = ([a, b]) => R.filter(r => r.fecha_comercial >= a && r.fecha_comercial <= b);
+    const agg = (rows, keyf, extra) => { const m = new Map(); rows.forEach(r => { const k = keyf(r); let g = m.get(k); if (!g) m.set(k, g = { k, ...extra(r), un: 0, neto: 0, costo: 0, netoCon: 0 });
+      g.un += +r.unidades; g.neto += +r.neto; if (r.costo_unit != null) { g.costo += +r.costo_total; g.netoCon += +r.neto; g.costoUnit = +r.costo_unit; } }); return m; };
+    const ndias = rows => new Set(rows.map(r => r.fecha_comercial)).size;
+    let ordR = { k: 'neto', d: -1 }, ordP = { k: 'neto', d: -1 }, buscar = '';
+    function tablaHTML(el, cols, rows, ord, onSort, max) {
+      if (!rows.length) { el.innerHTML = '<tbody><tr><td class="tl" style="white-space:normal;padding:1rem 0;color:var(--color-fg-muted)">Sin ranking de productos en este período.</td></tr></tbody>'; return; }
+      const rs = rows.slice().sort((a, b) => { const x = a[ord.k], y = b[ord.k]; return (x == null) - (y == null) || (typeof x === 'string' ? x.localeCompare(y) : x - y) * ord.d; }).slice(0, max || 9999);
+      el.innerHTML = '<thead><tr>' + cols.map(c => `<th class="${c.tl ? 'tl' : ''} ${c.n ? 'hide-n' : ''}"><button data-k="${c.k}">${c.t}</button></th>`).join('') + '</tr></thead><tbody>' +
+        rs.map(r => '<tr>' + cols.map(c => `<td class="${c.tl ? 'tl' : ''} ${c.n ? 'hide-n' : ''} ${c.cls ? c.cls(r) : ''}">${c.f ? c.f(r) : r[c.k]}</td>`).join('') + '</tr>').join('') + '</tbody>';
+      el.querySelectorAll('th button').forEach(b => b.onclick = () => { const k = b.dataset.k; onSort(ord.k === k ? { k, d: -ord.d } : { k, d: cols.find(c => c.k === k).tl ? 1 : -1 }); });
+    }
+    function rankings(cur, prev) {
+      const rowsC = filasR(rango(modo, sel[modo])), rowsP = filasR(rango(modo, prev));
+      const sc = $('g-rubros'), sp = $('g-prods'); sc.hidden = sp.hidden = false;
+      const dC = ndias(rowsC), dP = ndias(rowsP), sinProd = cur.ci || 0;
+      const norm = (v, d) => modo === 'dia' ? v : v / (d || 1);
+      const compara = dC && dP && (modo === 'dia' || (dC >= 5 && dP >= 5));
+      const pie = (sinProd ? ` ${sinProd} ${sinProd === 1 ? 'día' : 'días'} de este período no tiene ranking de productos (solo cierre de caja) y no entra acá.` : '');
+      const rubC = agg(rowsC, r => r.rubro, r => ({ rubro: r.rubro })), rubP = agg(rowsP, r => r.rubro, r => ({}));
+      const totC = rowsC.reduce((s, r) => s + +r.neto, 0);
+      const rub = [...rubC.values()].map(g => { const p = rubP.get(g.k); return { ...g, mix: totC ? g.neto / totC : 0, mpct: g.netoCon ? 1 - g.costo / g.netoCon : null, margen: g.netoCon - g.costo, cob: g.neto ? g.netoCon / g.neto : 0,
+        vs: compara && p && p.neto ? norm(g.neto, dC) / norm(p.neto, dP) - 1 : null }; });
+      $('g-rubros-nota').textContent = `Período elegido arriba (${modo === 'dia' ? fdia(sel.dia) : modo === 'sem' ? fsem(sel.sem) : fmes(sel.mes)}). Venta neta sin IVA. Margen sobre la parte del rubro con costo real conocido (columna Cobertura).` + (compara ? ' "vs anterior" compara venta por día contra el período anterior.' : '') + pie;
+      const mxR = rub.reduce((m, r) => Math.max(m, r.neto), 1);
+      tablaHTML($('g-rubros-t'), [
+        { k: 'rubro', t: 'Rubro', tl: true }, { k: 'neto', t: 'Venta neta', f: r => clp(r.neto) + `<span class="bar" style="width:${r.neto / mxR * 3}rem"></span>` },
+        { k: 'mix', t: '% de la venta', f: r => pc(r.mix, 1), n: true }, { k: 'un', t: 'Unid.', f: r => Math.round(r.un).toLocaleString('es-CL'), n: true },
+        { k: 'mpct', t: 'Margen %', f: r => pc(r.mpct, 1) }, { k: 'margen', t: 'Margen $', f: r => r.netoCon ? clp(r.margen) : '—', n: true },
+        { k: 'cob', t: 'Cobertura', f: r => pc(r.cob), cls: r => r.cob < .5 ? 'warn' : '', n: true },
+        { k: 'vs', t: 'vs anterior', f: r => r.vs == null ? '—' : spc(r.vs), cls: r => r.vs > 0 ? 'up' : r.vs < 0 ? 'down' : '' }
+      ], rub, ordR, o => { ordR = o; rankings(cur, prev); });
+      const prC = agg(rowsC, r => r.cod + '|' + r.producto, r => ({ producto: r.producto, rubro: r.rubro })), prP = agg(rowsP, r => r.cod + '|' + r.producto, r => ({}));
+      const q = norm_(buscar);
+      const prods = [...prC.values()].filter(g => !q || norm_(g.producto + ' ' + g.rubro).includes(q)).map(g => { const p = prP.get(g.k);
+        return { ...g, conCosto: g.costoUnit != null, mpct: g.netoCon ? 1 - g.costo / g.netoCon : null, margen: g.netoCon - g.costo, mix: totC ? g.neto / totC : 0,
+          vs: compara && p && p.un ? norm(g.un, dC) / norm(p.un, dP) - 1 : null }; });
+      $('g-prods-nota').textContent = `Mismo período. "—" = sin costo real en Pricing (no se estima el margen). Toca un título para ordenar.` + (compara ? ' "vs anterior" = unidades por día contra el período anterior.' : '') + pie;
+      tablaHTML($('g-prods-t'), [
+        { k: 'producto', t: 'Producto', tl: true }, { k: 'rubro', t: 'Rubro', tl: true, n: true }, { k: 'un', t: 'Unid.', f: r => Math.round(r.un).toLocaleString('es-CL') },
+        { k: 'neto', t: 'Venta neta', f: r => clp(r.neto) }, { k: 'mix', t: '% venta', f: r => pc(r.mix, 1), n: true },
+        { k: 'costoUnit', t: 'Costo unit.', f: r => r.conCosto ? clp(r.costoUnit) : '—', n: true },
+        { k: 'mpct', t: 'Margen %', f: r => pc(r.mpct, 1), cls: r => r.mpct != null && r.mpct < .6 ? 'warn' : '' },
+        { k: 'margen', t: 'Margen $', f: r => r.conCosto ? clp(r.margen) : '—', n: true },
+        { k: 'vs', t: 'vs anterior', f: r => r.vs == null ? '—' : spc(r.vs), cls: r => r.vs > 0 ? 'up' : r.vs < 0 ? 'down' : '', n: true }
+      ], prods, ordP, o => { ordP = o; rankings(cur, prev); }, 150);
+    }
+    const norm_ = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
     function pinta() {
       controles();
       const cur = get(modo, sel[modo]);
@@ -619,11 +687,12 @@ window.dash = (() => {
       const ratio = modo === 'dia' ? (() => { const w = []; for (let i = 6; i >= 0; i--) w.push(get('dia', addD(sel.dia, -i))); const v = w.reduce((x, r) => x + r.v, 0), c = w.reduce((x, r) => x + r.c, 0); return v ? c / v : null; })()
         : (dias(cur) >= 5 && cur.v ? cur.c / cur.v : null);
 
-      $('g-nota').textContent = `Venta neta (sin IVA) del ranking del POS, cargada hasta el ${fdia(ultVenta)}. Compras = facturas y boletas confirmadas en Recepción por su fecha de documento, sin IVA, menos notas de crédito: no es el costo de venta (no considera inventario) y puede faltar lo que aún no se ha subido. Margen = venta menos costo real de Pricing, solo sobre los productos con costo conocido.`;
+      $('g-nota').textContent = `Venta neta (sin IVA) del ranking del POS, cargada hasta el ${fdia(ultVenta)}. Compras = facturas y boletas confirmadas en Recepción por su fecha de documento, sin IVA, menos notas de crédito: no es el costo de venta (no considera inventario) y puede faltar lo que aún no se ha subido. Margen = venta menos costo real de Pricing, solo sobre los productos con costo conocido. Los períodos con * incluyen días tomados de los cierres de caja (venta = total del cierre sin IVA, sin unidades ni margen) porque el ranking de esos días aún no está cargado.`;
+      const deCierres = cur.ci ? ` <span class="note">Incluye ${cur.ci} ${cur.ci === 1 ? 'día' : 'días'} tomado${cur.ci === 1 ? '' : 's'} de los cierres de caja (sin detalle de productos).</span>` : '';
       const sinVenta = !cur.v ? ' <span class="note">Sin venta cargada en este período.</span>' : '';
       $('g-tiles').innerHTML =
         tile((modo === 'dia' ? 'Día · ' : modo === 'sem' ? 'Semana · ' : 'Mes · ') + lab(sel[modo]) + nota(modo === 'dia' ? 0 : dias(cur)), cur.v ? clp(cur.v) : '—',
-          varV == null ? sinVenta : `<span class="${varV >= 0 ? 'up' : 'down'}">${spc(varV)}</span> ${modo !== 'dia' ? 'por día ' : ''}vs ${modo === 'dia' ? 'día' : modo === 'sem' ? 'semana' : 'mes'} anterior`) +
+          (varV == null ? sinVenta : `<span class="${varV >= 0 ? 'up' : 'down'}">${spc(varV)}</span> ${modo !== 'dia' ? 'por día ' : ''}vs ${modo === 'dia' ? 'día' : modo === 'sem' ? 'semana' : 'mes'} anterior`) + deCierres) +
         tile('Compras del mismo período', cur.c ? clp(cur.c) : '—', cur.c ? '' : 'sin documentos cargados') +
         tile(modo === 'dia' ? 'Compras / venta · 7 días hasta ese día' : 'Compras / venta', ratio == null ? '—' : pc(ratio, 1), 'no es costo de venta; compras se hacen para varios días') +
         tile('Margen sobre venta con costo', pc(cur.mg, 1), cur.v ? `costo conocido en ${pc(cur.cob)} de la venta` : '');
@@ -652,14 +721,16 @@ window.dash = (() => {
       const tb = document.querySelector('#g-tabla tbody'); tb.innerHTML = '';
       rows.filter(r => r.v || r.c || r.k === sel[modo]).slice().reverse().forEach(r => {
         const tr = document.createElement('tr'); if (r.k === sel[modo]) tr.style.fontWeight = '600'; tr.style.cursor = 'pointer'; tr.onclick = () => { sel[modo] = r.k; pinta(); };
-        [lab(r.k) + (modo !== 'dia' ? ' · ' + dias(r) + ' d' : ''), r.v ? clp(r.v) : '—', r.c ? clp(r.c) : '—', modo !== 'dia' && dias(r) >= 5 && r.c ? pc(r.cv, 1) : '—', Math.round(r.u).toLocaleString('es-CL'), pc(r.mg, 1)]
+        [lab(r.k) + (modo !== 'dia' ? ' · ' + dias(r) + ' d' : '') + (r.ci ? ' *' : ''), r.v ? clp(r.v) : '—', r.c ? clp(r.c) : '—', modo !== 'dia' && dias(r) >= 5 && r.c ? pc(r.cv, 1) : '—', Math.round(r.u).toLocaleString('es-CL'), pc(r.mg, 1)]
           .forEach((t, i) => { const td = document.createElement('td'); td.textContent = t; if (i === 4) td.className = 'hide-n'; tr.appendChild(td); });
         tb.appendChild(tr); });
+      rankings(cur, prevK);
     }
     const set = m => { modo = m; ['dia', 'sem', 'mes'].forEach(x => $('g-' + x).setAttribute('aria-selected', m === x)); pinta(); };
     ['dia', 'sem', 'mes'].forEach(x => $('g-' + x).onclick = () => set(x));
     $('g-sel').onchange = () => { sel[modo] = $('g-sel').value; pinta(); };
     $('g-fecha').onchange = () => { if ($('g-fecha').value) { sel.dia = $('g-fecha').value; pinta(); } };
+    $('g-buscar').oninput = () => { buscar = $('g-buscar').value; pinta(); };
     $('g-prev').onclick = () => paso(-1); $('g-next').onclick = () => paso(1);
     let t; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(pinta, 200); });
     pinta();
