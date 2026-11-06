@@ -106,8 +106,14 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 .ped th { text-align: left; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 4px 0; border-bottom: 1px solid var(--rule); }
 .ped th:nth-child(n+2), .ped td.sug { text-align: right; white-space: nowrap; }
 .ped td.sug { color: var(--muted); font-weight: 400; padding-right: 10px; }
-.ped td:last-child, .ped th:last-child { width: 6.5rem; text-align: right; }
-.ped input.alt { font: inherit; width: 6rem; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 8px; background: var(--cream); color: var(--ink); text-align: right; font-weight: 600; }
+.ped td:last-child, .ped th:last-child { width: 5rem; text-align: right; }
+.ped th.pv, .ped td.prov { text-align: left; width: 5.6rem; padding-right: 6px; white-space: normal; font-weight: 500; font-size: .76rem; line-height: 1.2; }
+.ped td.prov.sin { color: var(--muted); font-style: italic; font-weight: 400; }
+.ped td.sug { width: 3.6rem; padding-right: 6px; font-size: .8rem; }
+.ped td.pn { font-size: .84rem; line-height: 1.25; padding-right: 6px; }
+.ped select.provsel { font: inherit; font-size: .76rem; width: 100%; max-width: 5.6rem; padding: 4px 2px; border: 1px solid var(--rule); border-radius: 8px; background: var(--cream); color: var(--ink); }
+.ped select.provsel.sin { color: var(--muted); font-style: italic; }
+.ped input.alt { font: inherit; width: 4.6rem; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 8px; background: var(--cream); color: var(--ink); text-align: right; font-weight: 600; }
 .ped input.alt::placeholder { color: color-mix(in srgb, var(--muted) 55%, transparent); font-weight: 400; }
 .dias-ped { display: grid; gap: 18px; }
 .tabs a.cambiar { margin-left: auto; opacity: .85; font-weight: 400; text-decoration: underline; text-underline-offset: 3px; }
@@ -237,6 +243,11 @@ td small.prov { display: block; color: var(--muted); font-size: .74rem; margin-t
     S.db = await acceso.cliente();
     try { const j = JSON.parse(await acceso.archivo('estaciones/plan.json')); S.plan = j.plan; S.meta = j.meta; S.loaded = true;
       try { S.pedidos = JSON.parse(await acceso.archivo('estaciones/pedidos.json')); } catch (e) { S.pedidos = null; }
+      try { S.admin = await acceso.esAdmin(); } catch (e) { S.admin = false; }
+      try {  // proveedor de cada producto (lo edita administración): lista abreviada + asignación
+        const [l, a] = await Promise.all([S.db.from('proveedores_lista').select('corto').order('orden'), S.db.from('pedido_proveedor').select('insumo_cod,proveedor')]);
+        S.lista = (l.data || []).map(r => r.corto); S.provs = {}; (a.data || []).forEach(r => { if (r.proveedor) S.provs[r.insumo_cod] = r.proveedor; });
+      } catch (e) { S.lista = []; S.provs = {}; }
       try { S.fichas = JSON.parse(await acceso.archivo('fichas/mapa.json')); } catch (e) { S.fichas = {}; } }
     catch (e) { S.err = 'No se pudo leer el plan de stocks. Recarga la página.'; render(); return; }
     S.db.channel('checks').on('postgres_changes', { event: '*', schema: 'public', table: 'checks' }, p => {
@@ -476,19 +487,10 @@ td small.prov { display: block; color: var(--muted); font-size: .74rem; margin-t
     const sig = dias.find(d => SEMANA7.indexOf(d) > SEMANA7.indexOf(hoy)) || dias[0], sp = P.pedidos.filter(x => pedirDia(x) === sig);
     return el('div', { class: 'avisoped ya' }, el('b', { text: 'Hoy no hay pedidos. ' }), `Próximo: el ${sig.toLowerCase()} antes de las ${pedirHora(sp[0])} (${lista([...new Set(sp.map(x => x.nombre))])}).`);
   }
-  function togglePed() {
-    const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Cómo ver los pedidos' });
-    [['fam', 'Por familia'], ['prov', 'Por proveedor']].forEach(([m, t]) => {
-      const b = el('button', { type: 'button', text: t, 'aria-pressed': String(S.modoPed === m) });
-      b.addEventListener('click', () => { S.modoPed = m; render(); }); seg.append(b); });
-    return seg;
-  }
   function renderPedidos() {
     const P = S.pedidos;
     if (!P) { main.append(el('div', { class: 'notice', text: 'No se pudo cargar la lista de pedidos. Recarga la página.' })); return; }
-    S.modoPed = S.modoPed || (/[?&]ver=proveedor/.test(location.search) ? 'prov' : 'fam');
-    main.append(avisoHoy(P), togglePed());
-    if (S.modoPed === 'prov') return renderPorProveedor(P);
+    main.append(avisoHoy(P));
     const fams = [...new Set(P.pedidos.map(x => x.nombre))];
     if (!fams.includes(S.fam)) S.fam = fams[0];
     famBotones(fams); $('#dianom').textContent = S.fam;
@@ -496,60 +498,54 @@ td small.prov { display: block; color: var(--muted); font-size: .74rem; margin-t
     main.append(el('section', { class: 'group' }, el('h2', { text: S.fam }),
       el('p', { class: 'sub', text: `${lst.length === 1 ? 'Un pedido' : lst.length + ' pedidos'} por semana: se pide ${lista(lst.map(x => pedirDia(x).toLowerCase()))} (antes de las ${pedirHora(lst[0])}) y llega ${lista(lst.map(x => x.dia.toLowerCase()))}. Sugerido = venta de la semana 20-25 oct + materia prima de la producción, + 20% (no descuenta bodega). Escribe en "Pedir" otra cantidad si quieres; es la que se copia.` })));
     lst.forEach(x => main.append(pedidoCard(x)));
-    main.append(el('p', { class: 'foot', text: 'Siempre se pide el día anterior, antes de las 15:00. Vegetales y panes llegan martes, jueves y sábado. Carnes y pescados frescos: martes y jueves. Congelados (camarones, ostiones, jaiba), lácteos y abarrotes: martes, para toda la semana. Barra: jueves, para toda la semana. Postres comprados (crema volteada, tiramisú): martes y viernes. El proveedor es una sugerencia: el fijado a mano o el de la última factura.' }));
+    main.append(el('p', { class: 'foot', text: 'Siempre se pide el día anterior, antes de las 15:00. Vegetales y panes llegan martes, jueves y sábado. Carnes y pescados frescos: martes y jueves. Congelados (camarones, ostiones, jaiba), lácteos y abarrotes: martes, para toda la semana. Barra: jueves, para toda la semana. Postres comprados (crema volteada, tiramisú): martes y viernes. La columna Proveedor es la que administración fue completando; "Sin proveedor asignado" = todavía no está definido.' }));
   }
-  function renderPorProveedor(P) {
-    const dias = [...new Set(P.pedidos.map(pedirDia))].sort((a, b) => SEMANA7.indexOf(a) - SEMANA7.indexOf(b));
-    if (!dias.includes(S.diaPed)) S.diaPed = dias.includes(hoyNom()) ? hoyNom() : (dias.find(d => SEMANA7.indexOf(d) > SEMANA7.indexOf(hoyNom())) || dias[0]);
-    const box = $('#fams'); box.innerHTML = '';
-    dias.forEach(d => { const b = el('button', { type: 'button', text: 'Pedir ' + d.slice(0, 3).toLowerCase(), 'aria-pressed': String(d === S.diaPed) });
-      b.addEventListener('click', () => { S.diaPed = d; render(); }); box.append(b); });
-    $('#dianom').textContent = 'Por proveedor';
-    const del = P.pedidos.filter(x => pedirDia(x) === S.diaPed), llega = lista([...new Set(del.map(x => x.dia.toLowerCase()))]);
-    main.append(el('section', { class: 'group' }, el('h2', { text: `Pedir el ${S.diaPed.toLowerCase()} antes de las ${pedirHora(del[0])}` }),
-      el('p', { class: 'sub', text: `Llega el ${llega}. Incluye ${lista([...new Set(del.map(x => x.nombre))])}, agrupado por el proveedor sugerido. Las cantidades son las mismas de la vista por familia (si escribiste una propia, se respeta).` })));
-    const g = {};
-    del.forEach(x => x.items.forEach(i => { (g[i.prov || 'Sin proveedor'] = g[i.prov || 'Sin proveedor'] || []).push([x, i]); }));
-    Object.keys(g).sort((a, b) => (a === 'Sin proveedor') - (b === 'Sin proveedor') || a.localeCompare(b, 'es')).forEach(prov => {
-      const filas = g[prov], tb = el('tbody');
-      filas.forEach(([x, i]) => tb.append(filaItem(x, i, x.nombre)));
-      const texto = () => `Pedido a ${prov} · se pide el ${S.diaPed.toLowerCase()} · llega el ${llega}\n` + filas.map(([x, i]) => {
-        const a = getAlt(x, i); const n = a !== '' ? Number(a) / (enG(i.cant, i.un) ? 1000 : 1) : i.cant;
-        return n > 0 ? `- ${i.art}: ${cantTxt(n, i.un)}` : null; }).filter(Boolean).join('\n');
-      const copiar = el('button', { type: 'button', class: 'btn pri', text: prov === 'Sin proveedor' ? 'Copiar lista' : 'Copiar pedido a ' + prov });
-      copiar.addEventListener('click', async () => { try { await navigator.clipboard.writeText(texto()); toast('Pedido copiado. Pégalo en WhatsApp o en el correo al proveedor.'); } catch (e) { toast('No se pudo copiar en este navegador.'); } });
-      main.append(el('article', { class: 'ped' },
-        el('header', null, el('h4', { text: prov }), el('span', { class: 'cubre', text: filas.length + (filas.length === 1 ? ' producto' : ' productos') })),
-        prov === 'Sin proveedor' ? el('p', { class: 'sub', text: 'Todavía no hay una factura de estos productos para sugerir proveedor. Avísale a administración para asignarlo.' }) : null,
-        el('table', null, el('thead', null, el('tr', null, el('th', { text: 'Producto' }), el('th', { class: 'sug', text: 'Sugerido' }), el('th', { text: 'Pedir' }))), tb),
-        el('div', { class: 'acts' }, copiar)));
+  function provCelda(i) {
+    const cur = (S.provs || {})[i.cod] || '';
+    if (!S.admin) return el('td', { class: 'prov' + (cur ? '' : ' sin'), text: cur || 'Sin proveedor asignado' });
+    const sel = el('select', { class: 'provsel' + (cur ? '' : ' sin'), 'data-cod': i.cod, 'aria-label': 'Proveedor de ' + i.art });
+    sel.append(el('option', { value: '', text: 'Sin proveedor asignado' }));
+    (S.lista || []).forEach(c => sel.append(el('option', { value: c, text: c })));
+    sel.value = cur;
+    sel.addEventListener('change', async () => {
+      const v = sel.value, antes = (S.provs || {})[i.cod] || '';
+      const r = v ? await S.db.from('pedido_proveedor').upsert({ insumo_cod: i.cod, proveedor: v, origen: 'manual', actualizado_en: new Date().toISOString() })
+                  : await S.db.from('pedido_proveedor').delete().eq('insumo_cod', i.cod);
+      if (r.error) { sel.value = antes; toast('No se pudo guardar el proveedor. Revisa tu conexión.'); return; }
+      S.provs = S.provs || {}; if (v) S.provs[i.cod] = v; else delete S.provs[i.cod];
+      document.querySelectorAll('select.provsel[data-cod="' + i.cod + '"]').forEach(o => { o.value = v; o.classList.toggle('sin', !v); });
+      toast(v ? i.art + ': ' + v : i.art + ': sin proveedor');
     });
+    return el('td', { class: 'prov' }, sel);
   }
-  function filaItem(x, i, sub) {
+  function filaItem(x, i) {
     const g = enG(i.cant, i.un);
     const inp = el('input', { type: 'number', min: '0', step: g ? '50' : (i.un === 'kg' || i.un === 'lt') ? '0.1' : '1', inputmode: 'decimal', class: 'alt', 'aria-label': `Pedir ${i.art} (${g ? 'g' : (UN[i.un] || i.un)})`, placeholder: cant(i.cant, i.un)[0] });
     inp.value = getAlt(x, i);
     inp.addEventListener('input', () => setAlt(x, i, inp.value.trim()));
-    const etiqueta = sub || (i.prov && i.prov !== 'Sin proveedor' ? i.prov : '');
-    return el('tr', null, el('td', null, el('span', { text: i.art }), etiqueta ? el('small', { class: 'prov', text: etiqueta }) : null), el('td', { class: 'sug', text: cantTxt(i.cant, i.un) }), el('td', null, inp));
+    return el('tr', null, el('td', { class: 'pn', text: i.art }), provCelda(i), el('td', { class: 'sug', text: cantTxt(i.cant, i.un) }), el('td', null, inp));
   }
   function pedidoCard(x) {
     const tb = el('tbody'); let fam = null;
     x.items.forEach(i => {
-      if (x.nombre === 'Barra' && i.grupo !== fam) { fam = i.grupo; tb.append(el('tr', null, el('td', { class: 'fam', colspan: 3, text: fam }))); }
+      if (x.nombre === 'Barra' && i.grupo !== fam) { fam = i.grupo; tb.append(el('tr', null, el('td', { class: 'fam', colspan: 4, text: fam }))); }
       tb.append(filaItem(x, i));
     });
-    const texto = () => `Pedido ${x.nombre} · se pide el ${pedirDia(x).toLowerCase()} · llega el ${x.dia.toLowerCase()}\n` + x.items.map(i => {
-      const a = getAlt(x, i); const n = a !== '' ? Number(a) / (enG(i.cant, i.un) ? 1000 : 1) : i.cant;
-      return n > 0 ? `- ${i.art}: ${cantTxt(n, i.un)}` : null; }).filter(Boolean).join('\n');
+    const texto = () => {
+      const g = {};
+      x.items.forEach(i => { const a = getAlt(x, i); const n = a !== '' ? Number(a) / (enG(i.cant, i.un) ? 1000 : 1) : i.cant;
+        if (n > 0) { const k = (S.provs || {})[i.cod] || 'Sin proveedor asignado'; (g[k] = g[k] || []).push(`- ${i.art}: ${cantTxt(n, i.un)}`); } });
+      const ks = Object.keys(g).sort((p, q) => (p === 'Sin proveedor asignado') - (q === 'Sin proveedor asignado') || p.localeCompare(q, 'es'));
+      return `Pedido ${x.nombre} · se pide el ${pedirDia(x).toLowerCase()} · llega el ${x.dia.toLowerCase()}\n\n` + ks.map(k => k + ':\n' + g[k].join('\n')).join('\n\n');
+    };
     const copiar = el('button', { type: 'button', class: 'btn pri', text: 'Copiar lista' });
-    copiar.addEventListener('click', async () => { try { await navigator.clipboard.writeText(texto()); toast('Lista copiada con tus cantidades. Pégala en WhatsApp o en el correo al proveedor.'); } catch (e) { toast('No se pudo copiar en este navegador.'); } });
+    copiar.addEventListener('click', async () => { try { await navigator.clipboard.writeText(texto()); toast('Lista copiada, ordenada por proveedor. Pégala en WhatsApp o en el correo.'); } catch (e) { toast('No se pudo copiar en este navegador.'); } });
     const limpiar = el('button', { type: 'button', class: 'btn', text: 'Volver al sugerido' });
     limpiar.addEventListener('click', () => { x.items.forEach(i => setAlt(x, i, '')); render(); });
     return el('article', { class: 'ped' },
       el('header', null, el('h4', { text: 'Llega el ' + x.dia.toLowerCase() }), el('span', { class: 'pill warn pedir', text: `Pedir el ${pedirDia(x).toLowerCase()} antes de las ${pedirHora(x)}` }), el('span', { class: 'cubre', text: 'Cubre ' + x.cubre.map(c => c.slice(0, 3).toLowerCase()).join(', ') + ' · ' + x.items.length + ' productos' })),
       x.nota ? el('p', { class: 'pill warn', style: 'border-radius:8px;padding:8px 10px;font-weight:500;line-height:1.4', text: x.nota }) : null,
-      el('table', null, el('thead', null, el('tr', null, el('th', { text: 'Producto' }), el('th', { class: 'sug', text: 'Sugerido' }), el('th', { text: 'Pedir' }))), tb),
+      el('table', null, el('thead', null, el('tr', null, el('th', { text: 'Producto' }), el('th', { class: 'pv', text: 'Proveedor' }), el('th', { class: 'sug', text: 'Sugerido' }), el('th', { text: 'Pedir' }))), tb),
       el('div', { class: 'acts' }, copiar, limpiar));
   }
 
