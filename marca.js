@@ -17,7 +17,7 @@ window.MARCA = {
   // Secciones: aparecen como tarjetas en Inicio y en el menú de abajo. admin:true = solo administración.
   // ruta = carpeta relativa a la raíz del sitio.
   secciones: [
-    { id: 'estaciones', titulo: 'Estaciones', corto: 'Estaciones', ruta: 'estaciones/', icono: 'lista', desc: 'Stocks y producción del día, por estación' },
+    { id: 'estaciones', titulo: 'Stock por estaciones', corto: 'Stock', ruta: 'estaciones/', icono: 'lista', desc: 'Qué debe haber en cada estación antes de abrir y la producción del día' },
     { id: 'compras',    titulo: 'Compras',    corto: 'Compras',    ruta: 'estaciones/#pedidos', icono: 'carrito', desc: 'Pedidos a proveedores por familia, con cantidad sugerida' },
     { id: 'fichas',     titulo: 'Fichas',     corto: 'Fichas',     ruta: 'fichas/',     icono: 'libro', desc: 'Producción y platos, con cantidades por escala' },
     { id: 'ventas',     titulo: 'Ventas',     corto: 'Ventas',     ruta: 'ventas/',     icono: 'grafico', desc: 'Dashboard de ventas', admin: true },

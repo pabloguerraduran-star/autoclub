@@ -130,6 +130,16 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 .dlg .err { color: var(--warn); font-size: .85rem; margin: 0; min-height: 1.2em; }
 .cred { font-size: .82rem; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .cred input { font: inherit; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); color: var(--ink); width: 14rem; max-width: 100%; }
+
+.seg { display: flex; gap: 8px; }
+.seg button { font: inherit; font-weight: 600; flex: 1; min-height: 44px; padding: 0 12px; border: 1px solid var(--navy); background: var(--panel); color: var(--navy); border-radius: 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--navy); color: var(--cream); }
+@media (prefers-color-scheme: dark) { .seg button[aria-pressed="true"] { color: #141322; } }
+.avisoped { border-radius: 12px; padding: 12px 14px; line-height: 1.4; background: var(--warn-bg); color: var(--warn); font-weight: 500; }
+.avisoped.ya { background: var(--ok-bg); color: var(--ok); }
+.avisoped b { font-weight: 700; }
+.pedir { display: inline-block; margin: 6px 0 2px; }
+td small.prov { display: block; color: var(--muted); font-size: .74rem; margin-top: 1px; }
 </style>
 </head>
 <body data-seccion="estaciones">
@@ -137,7 +147,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
 
 <div class="band"><div class="band-in">
   <div class="top">
-    <h1 class="brand">Stocks y producción</h1>
+    <h1 class="brand">Stock por estaciones</h1>
     <div class="fechabox">
     <span class="dianom" id="dianom" aria-live="polite"></span>
     <div class="date" id="dias" role="group" aria-label="Día de la semana"></div>
@@ -201,8 +211,8 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     document.querySelectorAll('.tabs a[data-v]').forEach(a => a.hidden = !(modo === 'admin' || a.dataset.v === modo));
     $('#cambiar').hidden = !modo || S.vista === 'pedidos';
     document.querySelector('.tabs').hidden = S.vista === 'pedidos';
-    document.querySelector('.brand').textContent = S.vista === 'pedidos' ? 'Compras' : 'Stocks y producción';
-    if (window.shell) { shell.miga([[S.vista === 'pedidos' ? 'Compras' : 'Estaciones']]); shell.seccion(S.vista === 'pedidos' ? 'compras' : 'estaciones'); }
+    document.querySelector('.brand').textContent = S.vista === 'pedidos' ? 'Compras' : 'Stock por estaciones';
+    if (window.shell) { shell.miga([[S.vista === 'pedidos' ? 'Compras' : 'Stock por estaciones']]); shell.seccion(S.vista === 'pedidos' ? 'compras' : 'estaciones'); }
     $('#dias').hidden = S.vista === 'pedidos'; $('#fams').hidden = S.vista !== 'pedidos';
     $('#dianom').textContent = S.vista === 'pedidos' ? (S.fam || 'Pedidos') : dia(S.fecha);
     document.querySelectorAll('.tabs a').forEach(a => a.dataset.v === S.vista ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
@@ -449,29 +459,87 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     fams.forEach(f => { const b = el('button', { type: 'button', text: f, 'aria-pressed': String(f === S.fam) });
       b.addEventListener('click', () => { S.fam = f; $('#dianom').textContent = f; render(); }); box.append(b); });
   }
+  const SEMANA7 = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const hoyNom = () => SEMANA7[(new Date().getDay() + 6) % 7];
+  const pedirDia = x => x.pedir_dia || SEMANA7[(SEMANA7.indexOf(x.dia) + 6) % 7];
+  const pedirHora = x => x.pedir_hora || '15:00';
+  const lista = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : a.join('');
+  function avisoHoy(P) {
+    const hoy = hoyNom(), hoyP = P.pedidos.filter(x => pedirDia(x) === hoy);
+    const dias = [...new Set(P.pedidos.map(pedirDia))].sort((a, b) => SEMANA7.indexOf(a) - SEMANA7.indexOf(b));
+    if (hoyP.length) {
+      const [hh, mm] = pedirHora(hoyP[0]).split(':').map(Number), lim = new Date(); lim.setHours(hh, mm, 0, 0);
+      const falta = Math.round((lim - new Date()) / 60000);
+      const tiempo = falta > 0 ? ` Faltan ${Math.floor(falta / 60) ? Math.floor(falta / 60) + ' h ' : ''}${falta % 60} min.` : ' La hora de hoy ya pasó: pídelo igual y avisa al proveedor.';
+      return el('div', { class: 'avisoped' + (falta > 0 ? '' : ' ya') }, el('b', { text: `Hoy ${hoy.toLowerCase()} se pide antes de las ${pedirHora(hoyP[0])}: ` }), lista([...new Set(hoyP.map(x => x.nombre))]) + '.' + tiempo);
+    }
+    const sig = dias.find(d => SEMANA7.indexOf(d) > SEMANA7.indexOf(hoy)) || dias[0], sp = P.pedidos.filter(x => pedirDia(x) === sig);
+    return el('div', { class: 'avisoped ya' }, el('b', { text: 'Hoy no hay pedidos. ' }), `Próximo: el ${sig.toLowerCase()} antes de las ${pedirHora(sp[0])} (${lista([...new Set(sp.map(x => x.nombre))])}).`);
+  }
+  function togglePed() {
+    const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Cómo ver los pedidos' });
+    [['fam', 'Por familia'], ['prov', 'Por proveedor']].forEach(([m, t]) => {
+      const b = el('button', { type: 'button', text: t, 'aria-pressed': String(S.modoPed === m) });
+      b.addEventListener('click', () => { S.modoPed = m; render(); }); seg.append(b); });
+    return seg;
+  }
   function renderPedidos() {
     const P = S.pedidos;
     if (!P) { main.append(el('div', { class: 'notice', text: 'No se pudo cargar la lista de pedidos. Recarga la página.' })); return; }
+    S.modoPed = S.modoPed || (/[?&]ver=proveedor/.test(location.search) ? 'prov' : 'fam');
+    main.append(avisoHoy(P), togglePed());
+    if (S.modoPed === 'prov') return renderPorProveedor(P);
     const fams = [...new Set(P.pedidos.map(x => x.nombre))];
     if (!fams.includes(S.fam)) S.fam = fams[0];
     famBotones(fams); $('#dianom').textContent = S.fam;
     const lst = P.pedidos.filter(x => x.nombre === S.fam);
     main.append(el('section', { class: 'group' }, el('h2', { text: S.fam }),
-      el('p', { class: 'sub', text: `${lst.length === 1 ? 'Un pedido' : lst.length + ' pedidos'} por semana: ${lst.map(x => x.dia.toLowerCase()).join(', ')}. Sugerido = venta de la semana 20-25 oct + materia prima de la producción, + 20% (no descuenta bodega). Escribe en "Pedir" otra cantidad si quieres; es la que se copia.` })));
+      el('p', { class: 'sub', text: `${lst.length === 1 ? 'Un pedido' : lst.length + ' pedidos'} por semana: se pide ${lista(lst.map(x => pedirDia(x).toLowerCase()))} (antes de las ${pedirHora(lst[0])}) y llega ${lista(lst.map(x => x.dia.toLowerCase()))}. Sugerido = venta de la semana 20-25 oct + materia prima de la producción, + 20% (no descuenta bodega). Escribe en "Pedir" otra cantidad si quieres; es la que se copia.` })));
     lst.forEach(x => main.append(pedidoCard(x)));
-    main.append(el('p', { class: 'foot', text: 'Vegetales y panes: martes, jueves y sábado. Carnes y pescados frescos: martes y jueves. Congelados (camarones, ostiones, jaiba), lácteos y abarrotes: martes, para toda la semana. Barra: jueves, para toda la semana. Postres comprados (crema volteada, tiramisú): martes y viernes.' }));
+    main.append(el('p', { class: 'foot', text: 'Siempre se pide el día anterior, antes de las 15:00. Vegetales y panes llegan martes, jueves y sábado. Carnes y pescados frescos: martes y jueves. Congelados (camarones, ostiones, jaiba), lácteos y abarrotes: martes, para toda la semana. Barra: jueves, para toda la semana. Postres comprados (crema volteada, tiramisú): martes y viernes. El proveedor es una sugerencia: el fijado a mano o el de la última factura.' }));
+  }
+  function renderPorProveedor(P) {
+    const dias = [...new Set(P.pedidos.map(pedirDia))].sort((a, b) => SEMANA7.indexOf(a) - SEMANA7.indexOf(b));
+    if (!dias.includes(S.diaPed)) S.diaPed = dias.includes(hoyNom()) ? hoyNom() : (dias.find(d => SEMANA7.indexOf(d) > SEMANA7.indexOf(hoyNom())) || dias[0]);
+    const box = $('#fams'); box.innerHTML = '';
+    dias.forEach(d => { const b = el('button', { type: 'button', text: 'Pedir ' + d.slice(0, 3).toLowerCase(), 'aria-pressed': String(d === S.diaPed) });
+      b.addEventListener('click', () => { S.diaPed = d; render(); }); box.append(b); });
+    $('#dianom').textContent = 'Por proveedor';
+    const del = P.pedidos.filter(x => pedirDia(x) === S.diaPed), llega = lista([...new Set(del.map(x => x.dia.toLowerCase()))]);
+    main.append(el('section', { class: 'group' }, el('h2', { text: `Pedir el ${S.diaPed.toLowerCase()} antes de las ${pedirHora(del[0])}` }),
+      el('p', { class: 'sub', text: `Llega el ${llega}. Incluye ${lista([...new Set(del.map(x => x.nombre))])}, agrupado por el proveedor sugerido. Las cantidades son las mismas de la vista por familia (si escribiste una propia, se respeta).` })));
+    const g = {};
+    del.forEach(x => x.items.forEach(i => { (g[i.prov || 'Sin proveedor'] = g[i.prov || 'Sin proveedor'] || []).push([x, i]); }));
+    Object.keys(g).sort((a, b) => (a === 'Sin proveedor') - (b === 'Sin proveedor') || a.localeCompare(b, 'es')).forEach(prov => {
+      const filas = g[prov], tb = el('tbody');
+      filas.forEach(([x, i]) => tb.append(filaItem(x, i, x.nombre)));
+      const texto = () => `Pedido a ${prov} · se pide el ${S.diaPed.toLowerCase()} · llega el ${llega}\n` + filas.map(([x, i]) => {
+        const a = getAlt(x, i); const n = a !== '' ? Number(a) / (enG(i.cant, i.un) ? 1000 : 1) : i.cant;
+        return n > 0 ? `- ${i.art}: ${cantTxt(n, i.un)}` : null; }).filter(Boolean).join('\n');
+      const copiar = el('button', { type: 'button', class: 'btn pri', text: prov === 'Sin proveedor' ? 'Copiar lista' : 'Copiar pedido a ' + prov });
+      copiar.addEventListener('click', async () => { try { await navigator.clipboard.writeText(texto()); toast('Pedido copiado. Pégalo en WhatsApp o en el correo al proveedor.'); } catch (e) { toast('No se pudo copiar en este navegador.'); } });
+      main.append(el('article', { class: 'ped' },
+        el('header', null, el('h4', { text: prov }), el('span', { class: 'cubre', text: filas.length + (filas.length === 1 ? ' producto' : ' productos') })),
+        prov === 'Sin proveedor' ? el('p', { class: 'sub', text: 'Todavía no hay una factura de estos productos para sugerir proveedor. Avísale a administración para asignarlo.' }) : null,
+        el('table', null, el('thead', null, el('tr', null, el('th', { text: 'Producto' }), el('th', { class: 'sug', text: 'Sugerido' }), el('th', { text: 'Pedir' }))), tb),
+        el('div', { class: 'acts' }, copiar)));
+    });
+  }
+  function filaItem(x, i, sub) {
+    const g = enG(i.cant, i.un);
+    const inp = el('input', { type: 'number', min: '0', step: g ? '50' : (i.un === 'kg' || i.un === 'lt') ? '0.1' : '1', inputmode: 'decimal', class: 'alt', 'aria-label': `Pedir ${i.art} (${g ? 'g' : (UN[i.un] || i.un)})`, placeholder: cant(i.cant, i.un)[0] });
+    inp.value = getAlt(x, i);
+    inp.addEventListener('input', () => setAlt(x, i, inp.value.trim()));
+    const etiqueta = sub || (i.prov && i.prov !== 'Sin proveedor' ? i.prov : '');
+    return el('tr', null, el('td', null, el('span', { text: i.art }), etiqueta ? el('small', { class: 'prov', text: etiqueta }) : null), el('td', { class: 'sug', text: cantTxt(i.cant, i.un) }), el('td', null, inp));
   }
   function pedidoCard(x) {
     const tb = el('tbody'); let fam = null;
     x.items.forEach(i => {
       if (x.nombre === 'Barra' && i.grupo !== fam) { fam = i.grupo; tb.append(el('tr', null, el('td', { class: 'fam', colspan: 3, text: fam }))); }
-      const g = enG(i.cant, i.un);
-      const inp = el('input', { type: 'number', min: '0', step: g ? '50' : (i.un === 'kg' || i.un === 'lt') ? '0.1' : '1', inputmode: 'decimal', class: 'alt', 'aria-label': `Pedir ${i.art} (${g ? 'g' : (UN[i.un] || i.un)})`, placeholder: cant(i.cant, i.un)[0] });
-      inp.value = getAlt(x, i);
-      inp.addEventListener('input', () => setAlt(x, i, inp.value.trim()));
-      tb.append(el('tr', null, el('td', { text: i.art }), el('td', { class: 'sug', text: cantTxt(i.cant, i.un) }), el('td', null, inp)));
+      tb.append(filaItem(x, i));
     });
-    const texto = () => `Pedido ${x.nombre} · llega ${x.dia.toLowerCase()}\n` + x.items.map(i => {
+    const texto = () => `Pedido ${x.nombre} · se pide el ${pedirDia(x).toLowerCase()} · llega el ${x.dia.toLowerCase()}\n` + x.items.map(i => {
       const a = getAlt(x, i); const n = a !== '' ? Number(a) / (enG(i.cant, i.un) ? 1000 : 1) : i.cant;
       return n > 0 ? `- ${i.art}: ${cantTxt(n, i.un)}` : null; }).filter(Boolean).join('\n');
     const copiar = el('button', { type: 'button', class: 'btn pri', text: 'Copiar lista' });
@@ -479,7 +547,7 @@ h3 { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color:
     const limpiar = el('button', { type: 'button', class: 'btn', text: 'Volver al sugerido' });
     limpiar.addEventListener('click', () => { x.items.forEach(i => setAlt(x, i, '')); render(); });
     return el('article', { class: 'ped' },
-      el('header', null, el('h4', { text: 'Llega el ' + x.dia.toLowerCase() }), el('span', { class: 'cubre', text: 'Cubre ' + x.cubre.map(c => c.slice(0, 3).toLowerCase()).join(', ') + ' · ' + x.items.length + ' productos' })),
+      el('header', null, el('h4', { text: 'Llega el ' + x.dia.toLowerCase() }), el('span', { class: 'pill warn pedir', text: `Pedir el ${pedirDia(x).toLowerCase()} antes de las ${pedirHora(x)}` }), el('span', { class: 'cubre', text: 'Cubre ' + x.cubre.map(c => c.slice(0, 3).toLowerCase()).join(', ') + ' · ' + x.items.length + ' productos' })),
       x.nota ? el('p', { class: 'pill warn', style: 'border-radius:8px;padding:8px 10px;font-weight:500;line-height:1.4', text: x.nota }) : null,
       el('table', null, el('thead', null, el('tr', null, el('th', { text: 'Producto' }), el('th', { class: 'sug', text: 'Sugerido' }), el('th', { text: 'Pedir' }))), tb),
       el('div', { class: 'acts' }, copiar, limpiar));

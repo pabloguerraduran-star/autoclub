@@ -13,7 +13,10 @@ main{max-width:44rem;margin:0 auto;padding:20px 16px 24px;display:grid;gap:20px}
 .hola{font:600 1.9rem/1.1 'EB Garamond',Georgia,serif;margin:0}
 .fecha{color:var(--muted);margin:2px 0 0;text-transform:capitalize}
 .hoy{display:flex;align-items:center;gap:14px;padding:18px;border-radius:18px;background:var(--prof);color:#F5F0E6;text-decoration:none;box-shadow:0 6px 18px rgba(0,0,0,.18)}
-@media(prefers-color-scheme:dark){.hoy{color:#ecebf5}}
+@media(prefers-color-scheme:dark){.hoy{color:#ecebf5}.hoy.c{color:#ecebf5}}
+.hoy.c{background:var(--panel);color:var(--ink);border:1px solid var(--rule);box-shadow:none}
+.hoy.c .go{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)}
+.hoy.c b{font-size:1.2rem}
 .hoy small{display:block;opacity:.75;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}
 .hoy b{display:block;font:600 1.5rem/1.15 'EB Garamond',Georgia,serif;margin-top:2px}
 .hoy .go{margin-left:auto;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center;flex:none}
@@ -32,7 +35,8 @@ h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mu
 <body data-seccion="inicio">
 <main>
   <header><h1 class="hola" id="hola">Hola</h1><p class="fecha" id="fecha"></p></header>
-  <a class="hoy" id="hoy" href="estaciones/"><div><small>Hoy</small><b id="hoyd">Estaciones y producción</b></div><span class="go" id="go"></span></a>
+  <a class="hoy" id="hoy" href="estaciones/"><div><small>Hoy</small><b id="hoyd">Stock por estaciones</b></div><span class="go" id="go"></span></a>
+  <a class="hoy c" id="hoyc" href="estaciones/#pedidos" hidden><div><small>Compras</small><b id="hoycd"></b></div><span class="go" id="goc"></span></a>
   <section><h2>Secciones</h2><div class="cards" id="cards"></div></section>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -46,11 +50,23 @@ document.getElementById('hola').textContent=(h<12?'Buenos días':h<20?'Buenas ta
 const d=new Date();document.getElementById('fecha').textContent=d.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'});
 document.getElementById('go').innerHTML=shellIcono('atras');
 const DIA=d.toLocaleDateString('es-CL',{weekday:'long'});
-document.getElementById('hoyd').textContent=DIA==='lunes'?'Lunes: sin producción':'Producción y stocks del '+DIA;
+document.getElementById('hoyd').textContent=DIA==='lunes'?'Stock por estaciones (lunes sin producción)':'Stock por estaciones del '+DIA;
 function pinta(admin){
   document.getElementById('cards').innerHTML=M.secciones.filter(s=>admin||!s.admin).map(s=>
    `<a class="card${s.admin?' adm':''}" href="${s.ruta}"><span class="ic">${shellIcono(s.icono)}</span><b>${s.titulo}</b><span class="d">${s.desc||''}</span></a>`).join('');
 }
 pinta(false);
 acceso.cliente().then(()=>acceso.esAdmin()).then(pinta);
+// Compras: qué hay que pedir hoy (el día anterior a la llegada, antes de las 15:00)
+(async()=>{try{
+  const P=JSON.parse(await acceso.archivo('estaciones/pedidos.json')),S7=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  const hoy=S7[(new Date().getDay()+6)%7],pd=x=>x.pedir_dia||S7[(S7.indexOf(x.dia)+6)%7];
+  const lst=a=>a.length>1?a.slice(0,-1).join(', ')+' y '+a[a.length-1]:a.join('');
+  const dias=[...new Set(P.pedidos.map(pd))].sort((a,b)=>S7.indexOf(a)-S7.indexOf(b));
+  const h=P.pedidos.filter(x=>pd(x)===hoy),el=document.getElementById('hoycd');
+  if(h.length){el.textContent='Hoy se pide antes de las 15:00: '+lst([...new Set(h.map(x=>x.nombre))]);}
+  else{const sg=dias.find(d=>S7.indexOf(d)>S7.indexOf(hoy))||dias[0],sp=P.pedidos.filter(x=>pd(x)===sg);el.textContent='Próximo pedido: '+sg.toLowerCase()+' antes de las 15:00 ('+lst([...new Set(sp.map(x=>x.nombre))])+')';}
+  document.getElementById('goc').innerHTML=shellIcono('atras');document.getElementById('goc').firstChild.style.transform='rotate(180deg)';
+  document.getElementById('hoyc').hidden=false;
+}catch(e){}})();
 </script></body></html>
