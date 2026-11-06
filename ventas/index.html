@@ -130,7 +130,13 @@ window.dash = (() => {
       </div>
     </div>
     <div class="ctrls" style="margin-top:var(--cds-gap-sm)">
-      <div><label for="g-filtro" class="note">Mes</label><br><select id="g-filtro" class="search"></select></div>
+      <div style="display:flex;gap:6px;align-items:end;flex:1 1 20rem;max-width:26rem">
+        <button type="button" id="g-prev" class="search" style="width:auto;cursor:pointer" aria-label="Anterior">‹</button>
+        <div style="flex:1;min-width:0"><label for="g-sel" class="note" id="g-sel-lab">Mes</label><br>
+          <select id="g-sel" class="search" style="max-width:none;width:100%"></select>
+          <input id="g-fecha" type="date" class="search" style="max-width:none;width:100%;box-sizing:border-box" hidden></div>
+        <button type="button" id="g-next" class="search" style="width:auto;cursor:pointer" aria-label="Siguiente">›</button>
+      </div>
     </div>
     <p class="note" id="g-nota"></p>
     <div class="tiles" id="g-tiles" style="margin-top:var(--cds-gap-md)"></div>
@@ -540,83 +546,121 @@ window.dash = (() => {
       todo(() => db.from('documentos').select('estado,tipo,fecha_doc,neto').eq('estado', 'confirmado').order('fecha_doc'))]);
     if (!R.length) return;
     const sec = document.getElementById('gestion'); sec.hidden = false;
+    const $ = id => document.getElementById(id);
     const clp = n => '$' + Math.round(n).toLocaleString('es-CL');
-    const mm = n => '$' + (n / 1e6).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' MM';
     const pc = (v, d = 0) => v == null || !isFinite(v) ? '—' : (v * 100).toLocaleString('es-CL', { maximumFractionDigits: d }) + '%';
     const spc = v => v == null || !isFinite(v) ? '' : (v > 0 ? '+' : '') + pc(v);
-    const wd = f => (new Date(f + 'T12:00:00').getDay() + 6) % 7;
-    const lunes = f => { const d = new Date(f + 'T12:00:00'); d.setDate(d.getDate() - wd(f)); return d.toISOString().slice(0, 10); };
-    const fdia = f => new Date(f + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' });
-    const fsem = f => { const d = new Date(f + 'T12:00:00'); const e = new Date(d); e.setDate(e.getDate() + 6);
-      const o = { day: 'numeric', month: 'short' }; return d.toLocaleDateString('es-CL', o) + ' – ' + e.toLocaleDateString('es-CL', o); };
-    const mesk = f => f.slice(0, 7), fmes = k => { const t = new Date(k + '-15T12:00:00').toLocaleDateString('es-CL', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
+    const iso = d => d.toISOString().slice(0, 10), mk = f => new Date(f + 'T12:00:00');
+    const addD = (f, n) => { const d = mk(f); d.setDate(d.getDate() + n); return iso(d); };
+    const wd = f => (mk(f).getDay() + 6) % 7;
+    const lunes = f => addD(f, -wd(f));
+    const mesk = f => f.slice(0, 7);
+    const addM = (m, n) => { const d = new Date(m + '-15T12:00:00'); d.setMonth(d.getMonth() + n); return iso(d).slice(0, 7); };
+    const fdia = f => mk(f).toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' });
+    const fsem = f => { const o = { day: 'numeric', month: 'short' }; return mk(f).toLocaleDateString('es-CL', o) + ' – ' + mk(addD(f, 6)).toLocaleDateString('es-CL', o); };
+    const fmes = k => { const t = new Date(k + '-15T12:00:00').toLocaleDateString('es-CL', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
     const ultVenta = R[R.length - 1].fecha_comercial;
-    const meses = [...new Set(R.map(r => mesk(r.fecha_comercial)).concat(DOC.filter(d => d.fecha_doc).map(d => mesk(d.fecha_doc))))].sort();
-    const selM = document.getElementById('g-filtro');
-    selM.innerHTML = '<option value="">Todos los meses</option>' + meses.map(m => `<option value="${m}">${fmes(m)}</option>`).join('');
+    const todasF = R.map(r => r.fecha_comercial).concat(DOC.filter(d => d.fecha_doc).map(d => d.fecha_doc)).sort();
+    const F0 = todasF[0], F1 = todasF[todasF.length - 1];
 
-    // Un registro por período: venta, compras, unidades, venta/costo con costo conocido
+    // período -> registro (ventas, compras, unidades, margen). Se arma para cualquier clave, aunque no tenga datos.
     function agrupa(key) {
-      const m = new Map(), g = k => { if (!m.has(k)) m.set(k, { k, v: 0, c: 0, u: 0, vCon: 0, costo: 0, dv: new Set(), dc: new Set() }); return m.get(k); };
-      R.forEach(r => { const x = g(key(r.fecha_comercial)); x.v += +r.neto; x.u += +r.unidades; x.dv.add(r.fecha_comercial);
-        if (r.costo_unit != null) { x.vCon += +r.neto; x.costo += +r.costo_total; } });
-      DOC.forEach(d => { if (!d.fecha_doc) return; const x = g(key(d.fecha_doc)); x.c += (+d.neto || 0) * (d.tipo === 'NOTA DE CREDITO' ? -1 : 1); x.dc.add(d.fecha_doc); });
-      return [...m.values()].sort((a, b) => a.k < b.k ? -1 : 1).map(x => ({ ...x, cv: x.v ? x.c / x.v : null, mg: x.vCon ? 1 - x.costo / x.vCon : null, cob: x.v ? x.vCon / x.v : 0 }));
+      const m = new Map(), g = k => { if (!m.has(k)) m.set(k, { k, v: 0, c: 0, u: 0, vCon: 0, costo: 0, dv: new Set() }); return m.get(k); };
+      R.forEach(r => { const x = g(key(r.fecha_comercial)); x.v += +r.neto; x.u += +r.unidades; x.dv.add(r.fecha_comercial); if (r.costo_unit != null) { x.vCon += +r.neto; x.costo += +r.costo_total; } });
+      DOC.forEach(d => { if (d.fecha_doc) g(key(d.fecha_doc)).c += (+d.neto || 0) * (d.tipo === 'NOTA DE CREDITO' ? -1 : 1); });
+      return m;
     }
-    let modo = 'sem', mesSel = '';
+    const fin = x => ({ ...x, cv: x.v ? x.c / x.v : null, mg: x.vCon ? 1 - x.costo / x.vCon : null, cob: x.v ? x.vCon / x.v : 0 });
+    const vacio = k => ({ k, v: 0, c: 0, u: 0, vCon: 0, costo: 0, dv: new Set() });
+    const G = { dia: agrupa(f => f), sem: agrupa(lunes), mes: agrupa(mesk) };
+    const get = (modo, k) => fin(G[modo].get(k) || vacio(k));
+
+    // Opciones de cada selector
+    const meses = (() => { const a = []; for (let m = '2026-01'; m <= mesk(F1) || a.length < 12; m = addM(m, 1)) { a.push(m); if (a.length > 36) break; } return a; })();
+    const semanas = (() => { const a = []; for (let w = lunes(F0); w <= lunes(F1); w = addD(w, 7)) a.push(w); return a; })();
+    const ultimoCon = modo => { const ks = [...G[modo].values()].filter(x => x.v > 0).map(x => x.k).sort(); return ks[ks.length - 1]; };
+    let modo = 'sem', sel = { dia: ultimoCon('dia'), sem: ultimoCon('sem'), mes: ultimoCon('mes') };
     const tile = (lab, big, row) => `<div class="card tile"><span class="lab">${lab}</span><span class="big">${big}</span><span class="row">${row || ''}</span></div>`;
+    const dias = r => r.dv.size;
+    const nota = d => d ? ` · ${d} ${d === 1 ? 'día' : 'días'} con venta` : '';
+
+    function controles() {
+      const s = $('g-sel'), f = $('g-fecha');
+      $('g-sel-lab').textContent = modo === 'dia' ? 'Día' : modo === 'sem' ? 'Semana' : 'Mes';
+      s.hidden = modo === 'dia'; f.hidden = modo !== 'dia';
+      if (modo === 'dia') { f.min = F0; f.max = F1; f.value = sel.dia; }
+      else {
+        const L = modo === 'sem' ? semanas : meses, tiene = k => G[modo].has(k) && (G[modo].get(k).v > 0 || G[modo].get(k).c !== 0);
+        if (!L.includes(sel[modo])) L.push(sel[modo]), L.sort();
+        s.innerHTML = L.slice().reverse().map(k => `<option value="${k}">${modo === 'sem' ? fsem(k) : fmes(k)}${tiene(k) ? '' : ' (sin datos)'}</option>`).join('');
+        s.value = sel[modo];
+      }
+    }
+    function paso(n) {
+      if (modo === 'dia') { const x = addD(sel.dia, n); if (x >= F0 && x <= F1) sel.dia = x; }
+      else if (modo === 'sem') { const x = addD(sel.sem, 7 * n); if (x >= lunes(F0) && x <= lunes(F1)) sel.sem = x; }
+      else sel.mes = addM(sel.mes, n);
+      pinta();
+    }
 
     function pinta() {
-      const rows = agrupa(modo === 'dia' ? f => f : modo === 'sem' ? lunes : mesk), lab = modo === 'dia' ? fdia : modo === 'sem' ? fsem : fmes;
-      let vis = rows;
-      if (modo !== 'mes' && mesSel) {
-        const ini = mesSel + '-01', fin = mesSel + '-31';
-        vis = rows.filter(r => modo === 'dia' ? (r.k >= ini && r.k <= fin) : (new Date(r.k + 'T12:00:00').getTime() + 6 * 864e5 >= new Date(ini + 'T12:00:00').getTime() && r.k <= fin));
-      } else if (modo === 'dia') vis = rows.slice(-21);                           // sin filtro: últimos 21 días
-      if (!vis.length) vis = rows;
-      const conVenta = vis.filter(r => r.v > 0).length ? vis.filter(r => r.v > 0) : rows.filter(r => r.v > 0), ult = conVenta[conVenta.length - 1], ant = conVenta[conVenta.length - 2];
-      const dias = r => r.dv.size, base = modo !== 'dia' ? ' (' + dias(ult) + ' días)' : '';
-      const norm = r => modo !== 'dia' ? r.v / dias(r) : r.v;
-      const varV = ant && (modo === 'dia' || (dias(ult) >= 5 && dias(ant) >= 5)) ? norm(ult) / norm(ant) - 1 : null;
-      const ratio = modo !== 'dia' ? (dias(ult) >= 5 && ult.v ? ult.c / ult.v : null) : (() => { const t = new Date(ult.k + 'T12:00:00'), a = new Date(t); a.setDate(a.getDate() - 6); const ini = a.toISOString().slice(0, 10);
-        const w = rows.filter(r => r.k >= ini && r.k <= ult.k), v = w.reduce((x, r) => x + r.v, 0), c = w.reduce((x, r) => x + r.c, 0); return v ? c / v : null; })();
-      document.getElementById('g-th').textContent = modo === 'dia' ? 'Día' : modo === 'sem' ? 'Semana' : 'Mes'; selM.disabled = modo === 'mes';
-      document.getElementById('g-nota').textContent = `Venta neta (sin IVA) del ranking del POS, cargada hasta el ${fdia(ultVenta)}. Compras = facturas y boletas confirmadas en Recepción por su fecha de documento, sin IVA, menos notas de crédito: no es el costo de venta (no considera inventario) y puede faltar lo que aún no se ha subido. Margen = venta menos costo real de Pricing, solo sobre los productos con costo conocido.`;
-      document.getElementById('g-tiles').innerHTML =
-        tile(modo === 'dia' ? 'Último día con venta · ' + fdia(ult.k) : (modo === 'sem' ? 'Última semana · ' + fsem(ult.k) : 'Último mes · ' + fmes(ult.k)) + base, clp(ult.v),
-          varV == null ? '' : `<span class="${varV >= 0 ? 'up' : 'down'}">${spc(varV)}</span> ${modo !== 'dia' ? 'por día ' : ''}vs ${modo === 'dia' ? 'día' : modo === 'sem' ? 'semana' : 'mes'} anterior`) +
-        tile('Compras del mismo período', clp(ult.c), ult.c ? '' : 'sin documentos cargados') +
+      controles();
+      const cur = get(modo, sel[modo]);
+      const prevK = modo === 'dia' ? addD(sel.dia, -1) : modo === 'sem' ? addD(sel.sem, -7) : addM(sel.mes, -1), ant = get(modo, prevK);
+      const lab = modo === 'dia' ? fdia : modo === 'sem' ? fsem : fmes;
+      const norm = r => modo === 'dia' ? r.v : r.v / (dias(r) || 1);
+      const varV = cur.v && ant.v && (modo === 'dia' || (dias(cur) >= 5 && dias(ant) >= 5)) ? norm(cur) / norm(ant) - 1 : null;
+      // serie que se dibuja: día = el mes del día elegido; semana = todas; mes = los meses con datos (+ el elegido)
+      let serie;
+      if (modo === 'dia') { const m = mesk(sel.dia), a = []; for (let f = m + '-01'; mesk(f) === m; f = addD(f, 1)) a.push(f); serie = a; }
+      else if (modo === 'sem') serie = semanas.slice();
+      else serie = [...new Set([...G.mes.keys(), sel.mes])].sort();
+      const rows = serie.map(k => get(modo, k));
+      const ratio = modo === 'dia' ? (() => { const w = []; for (let i = 6; i >= 0; i--) w.push(get('dia', addD(sel.dia, -i))); const v = w.reduce((x, r) => x + r.v, 0), c = w.reduce((x, r) => x + r.c, 0); return v ? c / v : null; })()
+        : (dias(cur) >= 5 && cur.v ? cur.c / cur.v : null);
+
+      $('g-nota').textContent = `Venta neta (sin IVA) del ranking del POS, cargada hasta el ${fdia(ultVenta)}. Compras = facturas y boletas confirmadas en Recepción por su fecha de documento, sin IVA, menos notas de crédito: no es el costo de venta (no considera inventario) y puede faltar lo que aún no se ha subido. Margen = venta menos costo real de Pricing, solo sobre los productos con costo conocido.`;
+      const sinVenta = !cur.v ? ' <span class="note">Sin venta cargada en este período.</span>' : '';
+      $('g-tiles').innerHTML =
+        tile((modo === 'dia' ? 'Día · ' : modo === 'sem' ? 'Semana · ' : 'Mes · ') + lab(sel[modo]) + nota(modo === 'dia' ? 0 : dias(cur)), cur.v ? clp(cur.v) : '—',
+          varV == null ? sinVenta : `<span class="${varV >= 0 ? 'up' : 'down'}">${spc(varV)}</span> ${modo !== 'dia' ? 'por día ' : ''}vs ${modo === 'dia' ? 'día' : modo === 'sem' ? 'semana' : 'mes'} anterior`) +
+        tile('Compras del mismo período', cur.c ? clp(cur.c) : '—', cur.c ? '' : 'sin documentos cargados') +
         tile(modo === 'dia' ? 'Compras / venta · 7 días hasta ese día' : 'Compras / venta', ratio == null ? '—' : pc(ratio, 1), 'no es costo de venta; compras se hacen para varios días') +
-        tile('Margen sobre venta con costo', pc(ult.mg, 1), `costo conocido en ${pc(ult.cob)} de la venta`);
-      // gráfico de barras agrupadas: venta y compras
-      const el = document.getElementById('g-chart'); el.innerHTML = '';
+        tile('Margen sobre venta con costo', pc(cur.mg, 1), cur.v ? `costo conocido en ${pc(cur.cob)} de la venta` : '');
+
+      // gráfico: barras de la serie, el período elegido resaltado
+      const el = $('g-chart'); el.innerHTML = '';
       const W = Math.max(300, el.clientWidth), H = 260, ml = 54, mb = 38;
       const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
-      const sx = d3.scaleBand(vis.map(r => r.k), [ml, W - 4]).paddingInner(0.2), sub = d3.scaleBand(['v', 'c'], [0, sx.bandwidth()]).padding(0.06);
-      const sy = d3.scaleLinear([0, (d3.max(vis, r => Math.max(r.v, r.c)) || 1) * 1.08], [H - mb, 8]).nice();
+      const sx = d3.scaleBand(serie, [ml, W - 4]).paddingInner(0.2), sub = d3.scaleBand(['v', 'c'], [0, sx.bandwidth()]).padding(0.06);
+      const sy = d3.scaleLinear([0, (d3.max(rows, r => Math.max(r.v, r.c)) || 1) * 1.08], [H - mb, 8]).nice();
       const fm = v => v >= 1e6 ? (v / 1e6).toLocaleString('es-CL') + ' MM' : Math.round(v / 1000) + ' mil';
       sy.ticks(4).forEach(t => { svg.append('line').attr('x1', ml).attr('x2', W - 4).attr('y1', sy(t)).attr('y2', sy(t)).attr('stroke', 'var(--cds-chart-grid)');
         svg.append('text').attr('x', ml - 6).attr('y', sy(t)).attr('dy', '0.32em').attr('text-anchor', 'end').attr('font-size', 10.5).attr('fill', 'var(--color-fg-muted)').text(fm(t)); });
       const tp = d3.select(el).append('div').attr('class', 'tip').style('opacity', 0);
-      vis.forEach(r => [['v', 'var(--ac-s3)'], ['c', '#c98b2b']].forEach(([k, col]) => {
-        svg.append('rect').attr('x', sx(r.k) + sub(k)).attr('width', sub.bandwidth()).attr('y', sy(Math.max(0, r[k]))).attr('height', Math.max(0, sy(0) - sy(Math.max(0, r[k])))).attr('rx', 2).attr('fill', col)
+      rows.forEach(r => { const act = r.k === sel[modo]; [['v', 'var(--ac-s3)'], ['c', '#c98b2b']].forEach(([k, col]) => {
+        svg.append('rect').attr('x', sx(r.k) + sub(k)).attr('width', sub.bandwidth()).attr('y', sy(Math.max(0, r[k]))).attr('height', Math.max(0, sy(0) - sy(Math.max(0, r[k])))).attr('rx', 2).attr('fill', col).attr('opacity', act ? 1 : 0.45).style('cursor', 'pointer')
+          .on('click', () => { sel[modo] = r.k; pinta(); })
           .on('mousemove', ev => { tp.html(`<div class="h">${lab(r.k)}</div>Venta ${clp(r.v)}<br>Compras ${clp(r.c)}`); const [mx, my] = d3.pointer(ev, el);
             tp.style('left', Math.min(Math.max(0, mx + 10), el.clientWidth - tp.node().offsetWidth) + 'px').style('top', Math.max(0, my - 50) + 'px').style('opacity', 1); })
-          .on('mouseleave', () => tp.style('opacity', 0)); }));
-      const every = Math.ceil(vis.length / Math.max(3, Math.floor((W - ml) / (modo === 'dia' ? 48 : modo === 'sem' ? 90 : 70))));
-      vis.forEach((r, i) => { if (i % every) return; svg.append('text').attr('x', sx(r.k) + sx.bandwidth() / 2).attr('y', H - 18).attr('text-anchor', 'middle').attr('font-size', 10).attr('fill', 'var(--color-fg-muted)')
-        .text(modo === 'mes' ? fmes(r.k).split(' ')[0].slice(0, 3) : new Date(r.k + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })); });
-      // tabla (más reciente arriba)
+          .on('mouseleave', () => tp.style('opacity', 0)); }); });
+      const every = Math.ceil(serie.length / Math.max(3, Math.floor((W - ml) / (modo === 'dia' ? 34 : modo === 'sem' ? 90 : 70))));
+      serie.forEach((k, i) => { if (i % every) return; svg.append('text').attr('x', sx(k) + sx.bandwidth() / 2).attr('y', H - 18).attr('text-anchor', 'middle').attr('font-size', 10).attr('fill', 'var(--color-fg-muted)')
+        .text(modo === 'mes' ? fmes(k).split(' ')[0].slice(0, 3) : mk(k).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })); });
+
+      $('g-th').textContent = modo === 'dia' ? 'Día' : modo === 'sem' ? 'Semana' : 'Mes';
       const tb = document.querySelector('#g-tabla tbody'); tb.innerHTML = '';
-      vis.slice().reverse().forEach(r => {
-        const tr = document.createElement('tr');
+      rows.filter(r => r.v || r.c || r.k === sel[modo]).slice().reverse().forEach(r => {
+        const tr = document.createElement('tr'); if (r.k === sel[modo]) tr.style.fontWeight = '600'; tr.style.cursor = 'pointer'; tr.onclick = () => { sel[modo] = r.k; pinta(); };
         [lab(r.k) + (modo !== 'dia' ? ' · ' + dias(r) + ' d' : ''), r.v ? clp(r.v) : '—', r.c ? clp(r.c) : '—', modo !== 'dia' && dias(r) >= 5 && r.c ? pc(r.cv, 1) : '—', Math.round(r.u).toLocaleString('es-CL'), pc(r.mg, 1)]
           .forEach((t, i) => { const td = document.createElement('td'); td.textContent = t; if (i === 4) td.className = 'hide-n'; tr.appendChild(td); });
         tb.appendChild(tr); });
     }
-    const set = m => { modo = m; ['dia', 'sem', 'mes'].forEach(x => document.getElementById('g-' + x).setAttribute('aria-selected', m === x)); pinta(); };
-    ['dia', 'sem', 'mes'].forEach(x => document.getElementById('g-' + x).onclick = () => set(x));
-    selM.onchange = () => { mesSel = selM.value; pinta(); };
+    const set = m => { modo = m; ['dia', 'sem', 'mes'].forEach(x => $('g-' + x).setAttribute('aria-selected', m === x)); pinta(); };
+    ['dia', 'sem', 'mes'].forEach(x => $('g-' + x).onclick = () => set(x));
+    $('g-sel').onchange = () => { sel[modo] = $('g-sel').value; pinta(); };
+    $('g-fecha').onchange = () => { if ($('g-fecha').value) { sel.dia = $('g-fecha').value; pinta(); } };
+    $('g-prev').onclick = () => paso(-1); $('g-next').onclick = () => paso(1);
     let t; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(pinta, 200); });
     pinta();
   } catch (e) { console.error('gestión', e); }
